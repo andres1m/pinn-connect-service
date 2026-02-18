@@ -9,6 +9,11 @@ import (
 func Health(w http.ResponseWriter, r *http.Request) {
 	res := domain.HealthResponse{Status: "ok"}
 
+	resBytes, err := json.Marshal(res)
+	if err != nil{
+		panic("")
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(res)
+	w.Write(resBytes)
 }
