@@ -35,17 +35,13 @@ func test_docker() {
 	manager, err := docker.NewManager()
 	if err != nil {
 		log.Fatalf("Ошибка инициализации Docker клиента: %v", err)
-
-	}
-
-	opts := &docker.RunOptions{
-		Image: "alpine",
-		Env:   []string{"TEST_VAR=hello_pinn"},
-		Cmd:   []string{"sh", "-c", "echo 'started'; sleep 2; echo 'finished'"},
 	}
 
 	fmt.Println("Запуск контейнера...")
-	id, err := manager.StartContainer(ctx, opts)
+	id, err := manager.StartContainer(ctx, "alpine",
+		docker.WithEnvs([]string{"TEST_VAR=hello_pinn"}),
+		docker.WithCmds([]string{"sh", "-c", "echo 'started'; sleep 2; echo 'completed'"}),
+	)
 	if err != nil {
 		log.Fatalf("Ошибка при запуске контейнера: %v", err)
 	}

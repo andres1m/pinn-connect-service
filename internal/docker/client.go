@@ -9,31 +9,24 @@ import (
 	"github.com/moby/moby/client"
 )
 
-type RunOptions struct {
-	Image   string
-	Env     []string
-	Volumes []string
-	Cmd     []string
-}
-
 type Manager struct {
 	Client *client.Client
 }
 
-func (m *Manager) StartContainer(ctx context.Context, options *RunOptions) (container_id string, err error) {
-	if options == nil {
-		//TODO error handling OR default values
-		return "", fmt.Errorf("container run options are nil")
+func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (container_id string, err error) {
+	opts := defaultRunOptions()
+	for _, opt := range options {
+		opt(opts)
 	}
 
 	config := &container.Config{
-		Image: options.Image,
-		Env:   options.Env,
-		Cmd:   options.Cmd,
+		Image: image,
+		Env:   opts.Env,
+		Cmd:   opts.Cmd,
 	}
 
 	hostConfig := &container.HostConfig{
-		Binds: options.Volumes,
+		Binds: opts.Volumes,
 	}
 
 	createOpts := client.ContainerCreateOptions{
