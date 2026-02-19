@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/client"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
 type Manager struct {
@@ -29,17 +29,12 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 		Binds: opts.Volumes,
 	}
 
-	createOpts := client.ContainerCreateOptions{
-		Config:     config,
-		HostConfig: hostConfig,
-	}
-
-	res, err := m.Client.ContainerCreate(ctx, createOpts)
+	res, err := m.Client.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
 	if err != nil {
 		return res.ID, fmt.Errorf("creating container: %w", err)
 	}
 
-	_, err = m.Client.ContainerStart(ctx, res.ID, client.ContainerStartOptions{})
+	err = m.Client.ContainerStart(ctx, res.ID, container.StartOptions{})
 	if err != nil {
 		return res.ID, fmt.Errorf("starting container: %w", err)
 	}
@@ -48,7 +43,7 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 }
 
 func (m *Manager) GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error) {
-	opts := client.ContainerLogsOptions{
+	opts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     follow,
@@ -64,7 +59,7 @@ func (m *Manager) GetContainerLogs(ctx context.Context, containerID string, foll
 }
 
 func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error {
-	_, err := m.Client.ContainerRemove(ctx, containerID, client.ContainerRemoveOptions{})
+	err := m.Client.ContainerRemove(ctx, containerID, container.RemoveOptions{})
 	if err != nil {
 		return fmt.Errorf("removing container: %w", err)
 	}
@@ -73,7 +68,7 @@ func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error
 }
 
 func NewManager() (*Manager, error) {
-	cli, err := client.New(client.FromEnv, client.WithAPIVersionFromEnv())
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 
 	if err != nil {
 		return nil, err
