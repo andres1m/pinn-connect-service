@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
@@ -13,7 +16,21 @@ type Manager struct {
 	Client *client.Client
 }
 
+func NewManager() (*Manager, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Manager{Client: cli}, nil
+}
+
 func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (container_id string, err error) {
+	if err := m.pullImage(ctx, image); err != nil {
+		return "", fmt.Errorf("pre-pulling image: %w", err)
+	}
+
 	opts := defaultRunOptions()
 	for _, opt := range options {
 		opt(opts)
@@ -67,12 +84,38 @@ func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error
 	return nil
 }
 
-func NewManager() (*Manager, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-
+func (m *Manager) pullImage(ctx context.Context, img string) error {
+	exists, err := m.isImageExists(ctx, img)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("pulling image: %w", err)
 	}
 
-	return &Manager{Client: cli}, nil
+	if exists {
+		return nil
+	}
+
+	rc, err := m.Client.ImagePull(ctx, img, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("pulling image: %w", err)
+	}
+
+	defer rc.Close()
+
+	io.Copy(os.Stdout, rc)
+
+	return nil
+}
+
+func (m *Manager) isImageExists(ctx context.Context, img string) (bool, error) {
+	_, err := m.Client.ImageInspect(ctx, img)
+
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("checking if image exists: %w", err)
+	}
+
+	return true, nil
 }
