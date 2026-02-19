@@ -1,4 +1,4 @@
-package handler
+package server
 
 import (
 	"encoding/json"
@@ -6,11 +6,11 @@ import (
 	"pinn/internal/domain"
 )
 
-func Health(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	res := domain.HealthResponse{Status: "ok"}
 
 	resBytes, err := json.Marshal(res)
-	if err != nil{
+	if err != nil {
 		panic("")
 	}
 

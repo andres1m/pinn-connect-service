@@ -4,38 +4,28 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"pinn/internal/docker"
-	"pinn/internal/handler"
+	"pinn/internal/server"
 	"time"
 
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
-	test_docker()
-}
-
-func run_routers() {
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Get("/health", handler.Health)
-	r.Post("/run", handler.Run)
-	r.Get("/status", handler.Status)
-	log.Fatal(http.ListenAndServe(":8080", r))
-}
-
-func test_docker() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
 	manager, err := docker.NewManager()
 	if err != nil {
-		log.Fatalf("Ошибка инициализации Docker клиента: %v", err)
+		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
+
+	test_docker(manager)
+
+	log.Fatal(server.New(manager).Run(":8080"))
+}
+
+func test_docker(manager *docker.Manager) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 
 	fmt.Println("Запуск контейнера...")
 	id, err := manager.StartContainer(ctx, "alpine",
