@@ -182,7 +182,7 @@ func (m *Manager) hasGPUSupport(ctx context.Context) (bool, error) {
 func (m *Manager) setGPUSupport(ctx context.Context) {
 	hasGPU, err := m.hasGPUSupport(ctx)
 	if err != nil {
-		log.Printf("Error checking GPU support: %v. Proceeding without СPU.", err)
+		log.Printf("Error checking GPU support: %v. Proceeding without GPU.", err)
 		m.hasGPU = false
 		return
 	}
