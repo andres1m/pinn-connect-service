@@ -13,24 +13,25 @@ import (
 )
 
 func main() {
-	manager, err := docker.NewManager()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	manager, err := docker.NewManager(ctx)
 	if err != nil {
 		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
 
-	test_docker(manager)
+	test_docker(ctx, manager)
 
 	log.Fatal(server.New(manager).Run(":8080"))
 }
 
-func test_docker(manager *docker.Manager) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
+func test_docker(ctx context.Context, manager *docker.Manager) {
 	fmt.Println("Запуск контейнера...")
-	id, err := manager.StartContainer(ctx, "alpine",
+	id, err := manager.StartContainer(ctx, "nvidia/cuda:11.0.3-base-ubuntu20.04",
 		docker.WithEnvs([]string{"TEST_VAR=hello_pinn"}),
 		docker.WithCmds([]string{"sh", "-c", "echo 'started'; sleep 2; echo 'completed'"}),
+		docker.WithGPU(true),
 	)
 	if err != nil {
 		log.Fatalf("Ошибка при запуске контейнера: %v", err)

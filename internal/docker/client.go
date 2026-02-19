@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
+	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
@@ -14,16 +17,24 @@ import (
 
 type Manager struct {
 	Client *client.Client
+	hasGPU bool
 }
 
-func NewManager() (*Manager, error) {
+func NewManager(ctx context.Context) (*Manager, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &Manager{Client: cli}, nil
+	manager := &Manager{
+		Client: cli,
+		hasGPU: false,
+	}
+
+	manager.setGPUSupport(ctx)
+
+	return manager, nil
 }
 
 func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (container_id string, err error) {
@@ -44,6 +55,24 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 
 	hostConfig := &container.HostConfig{
 		Binds: opts.Volumes,
+		Resources: container.Resources{
+			Memory:   int64(opts.MemoryLimit) * 1024 * 1024,
+			NanoCPUs: int64(float64(opts.CPULimit) * 1e7),
+		},
+	}
+
+	if opts.GPU {
+		if m.hasGPU {
+			hostConfig.DeviceRequests = []container.DeviceRequest{
+				{
+					Driver:       "nvidia",
+					Count:        -1,
+					Capabilities: [][]string{{"gpu"}},
+				},
+			}
+		} else {
+			slog.Warn("GPU requested but not supported", "fallback", "CPU", "hint", "install nvidia-container-toolkit")
+		}
 	}
 
 	res, err := m.Client.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
@@ -52,6 +81,21 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 	}
 
 	err = m.Client.ContainerStart(ctx, res.ID, container.StartOptions{})
+
+	if err != nil && opts.GPU && strings.Contains(err.Error(), "could not select device driver") {
+		slog.Warn("GPU runtime failed at start. Retrying without GPU...", "error", err)
+		m.RemoveContainer(ctx, res.ID)
+
+		hostConfig.DeviceRequests = nil
+		m.hasGPU = false
+
+		res, err = m.Client.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+		if err != nil {
+			return res.ID, fmt.Errorf("creating container: %w", err)
+		}
+
+		err = m.Client.ContainerStart(ctx, res.ID, container.StartOptions{})
+	}
 	if err != nil {
 		return res.ID, fmt.Errorf("starting container: %w", err)
 	}
@@ -118,4 +162,30 @@ func (m *Manager) isImageExists(ctx context.Context, img string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (m *Manager) hasGPUSupport(ctx context.Context) (bool, error) {
+	info, err := m.Client.Info(ctx)
+	if err != nil {
+		return false, fmt.Errorf("checking GPU support: %w", err)
+	}
+
+	for name := range info.Runtimes {
+		if name == "nvidia" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (m *Manager) setGPUSupport(ctx context.Context) {
+	hasGPU, err := m.hasGPUSupport(ctx)
+	if err != nil {
+		log.Printf("Error checking GPU support: %v. Proceeding without GPU.", err)
+		m.hasGPU = false
+		return
+	}
+
+	m.hasGPU = hasGPU
 }

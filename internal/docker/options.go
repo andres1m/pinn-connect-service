@@ -3,16 +3,22 @@ package docker
 type RunOption func(*RunOptions)
 
 type RunOptions struct {
-	Env     []string
-	Volumes []string
-	Cmd     []string
+	Env         []string
+	Volumes     []string
+	Cmd         []string
+	MemoryLimit int
+	CPULimit    int
+	GPU         bool
 }
 
 func defaultRunOptions() *RunOptions {
 	return &RunOptions{
-		Env:     []string{},
-		Volumes: []string{},
-		Cmd:     []string{},
+		Env:         []string{},
+		Volumes:     []string{},
+		Cmd:         []string{},
+		MemoryLimit: 100,
+		CPULimit:    100,
+		GPU:         false,
 	}
 }
 
@@ -43,5 +49,31 @@ func WithCmds(cmd []string) RunOption {
 		}
 
 		opts.Cmd = cmd
+	}
+}
+
+func WithMemoryLimit(limit int) RunOption {
+	return func(opts *RunOptions) {
+		if limit <= 0 {
+			return
+		}
+
+		opts.MemoryLimit = limit
+	}
+}
+
+func WithCPULimit(limit int) RunOption {
+	return func(opts *RunOptions) {
+		if limit <= 0 {
+			return
+		}
+
+		opts.CPULimit = limit
+	}
+}
+
+func WithGPU(enable bool) RunOption {
+	return func(opts *RunOptions) {
+		opts.GPU = enable
 	}
 }
