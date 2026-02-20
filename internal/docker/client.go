@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -20,6 +19,7 @@ type Manager struct {
 	hasGPU bool
 }
 
+// NewManager create and return new docker manager.
 func NewManager(ctx context.Context) (*Manager, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 
@@ -37,7 +37,9 @@ func NewManager(ctx context.Context) (*Manager, error) {
 	return manager, nil
 }
 
-func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (container_id string, err error) {
+// StartContainer starts container with given options.
+// It returns the container id and an error if the process fails.
+func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (string, error) {
 	if err := m.pullImage(ctx, image); err != nil {
 		return "", fmt.Errorf("pre-pulling image: %w", err)
 	}
@@ -77,32 +79,45 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 
 	res, err := m.Client.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
 	if err != nil {
-		return res.ID, fmt.Errorf("creating container: %w", err)
+		return "", fmt.Errorf("creating container: %w", err)
 	}
 
-	err = m.Client.ContainerStart(ctx, res.ID, container.StartOptions{})
+	containerID := res.ID
 
-	if err != nil && opts.GPU && strings.Contains(err.Error(), "could not select device driver") {
+	err = m.Client.ContainerStart(ctx, containerID, container.StartOptions{})
+
+	if err != nil && opts.GPU && isGPUDriverError(err) {
 		slog.Warn("GPU runtime failed at start. Retrying without GPU...", "error", err)
-		m.RemoveContainer(ctx, res.ID)
+
+		err = m.RemoveContainer(ctx, containerID)
+		if err != nil {
+			slog.Warn("Error removing garbage container.", "error", err)
+		}
 
 		hostConfig.DeviceRequests = nil
 		m.hasGPU = false
 
+		slog.Warn("GPU support disabled until service restart.")
+
 		res, err = m.Client.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
 		if err != nil {
-			return res.ID, fmt.Errorf("creating container: %w", err)
+			return "", fmt.Errorf("creating container: %w", err)
 		}
 
-		err = m.Client.ContainerStart(ctx, res.ID, container.StartOptions{})
+		containerID = res.ID
+
+		err = m.Client.ContainerStart(ctx, containerID, container.StartOptions{})
 	}
 	if err != nil {
-		return res.ID, fmt.Errorf("starting container: %w", err)
+		slog.Error("failed to start container, cleaning up...", "id", containerID, "error", err)
+		_ = m.RemoveContainer(ctx, containerID)
+		return "", fmt.Errorf("starting container: %w", err)
 	}
 
-	return res.ID, nil
+	return containerID, nil
 }
 
+// GetContainerLogs get container logs from docker client and returns io.ReadCloser.
 func (m *Manager) GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error) {
 	opts := container.LogsOptions{
 		ShowStdout: true,
@@ -119,6 +134,7 @@ func (m *Manager) GetContainerLogs(ctx context.Context, containerID string, foll
 	return result, nil
 }
 
+// RemoveContainer removes container with given id.
 func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error {
 	err := m.Client.ContainerRemove(ctx, containerID, container.RemoveOptions{})
 	if err != nil {
@@ -131,7 +147,7 @@ func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error
 func (m *Manager) pullImage(ctx context.Context, img string) error {
 	exists, err := m.isImageExists(ctx, img)
 	if err != nil {
-		return fmt.Errorf("pulling image: %w", err)
+		return fmt.Errorf("checking if image exists: %w", err)
 	}
 
 	if exists {
@@ -144,8 +160,10 @@ func (m *Manager) pullImage(ctx context.Context, img string) error {
 	}
 
 	defer rc.Close()
-
-	io.Copy(os.Stdout, rc)
+	_, err = io.Copy(os.Stdout, rc)
+	if err != nil {
+		return fmt.Errorf("pulling image: %w", err)
+	}
 
 	return nil
 }
@@ -164,6 +182,7 @@ func (m *Manager) isImageExists(ctx context.Context, img string) (bool, error) {
 	return true, nil
 }
 
+// hasPGUSupport check if current docker client has gpu support (nvidia only)
 func (m *Manager) hasGPUSupport(ctx context.Context) (bool, error) {
 	info, err := m.Client.Info(ctx)
 	if err != nil {
@@ -179,13 +198,23 @@ func (m *Manager) hasGPUSupport(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+// setGPUSupport check and set GPU support bool
 func (m *Manager) setGPUSupport(ctx context.Context) {
 	hasGPU, err := m.hasGPUSupport(ctx)
 	if err != nil {
-		log.Printf("Error checking GPU support: %v. Proceeding without GPU.", err)
+		slog.Warn("Error checking GPU support. Proceeding without GPU.", "error", err)
 		m.hasGPU = false
 		return
 	}
 
 	m.hasGPU = hasGPU
+}
+
+func isGPUDriverError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// maybe only possible way to check this error
+	return strings.Contains(err.Error(), "could not select device driver")
 }
