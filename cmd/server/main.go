@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"pinn/internal/config"
 	"pinn/internal/docker"
 	"pinn/internal/server"
 	"time"
@@ -16,20 +17,23 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Error loading config: %v", err)
+	}
+
 	manager, err := docker.NewManager(ctx)
 	if err != nil {
 		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
 
-	test_docker(ctx, manager)
-
-	log.Fatal(server.New(manager).Run(":8080"))
+	log.Fatal(server.New(manager, cfg).Run(":8080"))
 }
 
 func test_docker(ctx context.Context, manager *docker.Manager) {
 	fmt.Println("Запуск контейнера...")
 	id, err := manager.StartContainer(ctx, "nvidia/cuda:11.0.3-base-ubuntu20.04",
-		docker.WithEnvs([]string{"TEST_VAR=hello_pinn"}),
+		docker.WithEnvs("TEST_VAR=hello_pinn"),
 		docker.WithCmds([]string{"sh", "-c", "echo 'started'; sleep 2; echo 'completed'"}),
 		docker.WithGPU(true),
 	)

@@ -1,10 +1,14 @@
 package docker
 
+import (
+	"github.com/docker/docker/api/types/mount"
+)
+
 type RunOption func(*RunOptions)
 
 type RunOptions struct {
 	Env         []string
-	Volumes     []string
+	Mounts      []mount.Mount
 	Cmd         []string
 	MemoryLimit int
 	CPULimit    int
@@ -14,7 +18,7 @@ type RunOptions struct {
 func defaultRunOptions() *RunOptions {
 	return &RunOptions{
 		Env:         []string{},
-		Volumes:     []string{},
+		Mounts:      []mount.Mount{},
 		Cmd:         []string{},
 		MemoryLimit: 100,
 		CPULimit:    100,
@@ -22,7 +26,7 @@ func defaultRunOptions() *RunOptions {
 	}
 }
 
-func WithEnvs(envs []string) RunOption {
+func WithEnvs(envs ...string) RunOption {
 	return func(opts *RunOptions) {
 		if envs == nil {
 			return
@@ -32,13 +36,13 @@ func WithEnvs(envs []string) RunOption {
 	}
 }
 
-func WithVolumes(volumes []string) RunOption {
+func WithMounts(mounts ...mount.Mount) RunOption {
 	return func(opts *RunOptions) {
-		if volumes == nil {
+		if mounts == nil {
 			return
 		}
 
-		opts.Volumes = volumes
+		opts.Mounts = mounts
 	}
 }
 

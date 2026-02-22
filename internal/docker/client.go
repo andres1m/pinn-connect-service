@@ -14,6 +14,16 @@ import (
 	"github.com/docker/docker/client"
 )
 
+type ContainerState struct {
+	Status     string
+	ExitCode   int
+	StartedAt  string
+	FinishedAt string
+	Running    bool
+	OOMKilled  bool
+	Error      string
+}
+
 type Manager struct {
 	Client *client.Client
 	hasGPU bool
@@ -56,7 +66,7 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 	}
 
 	hostConfig := &container.HostConfig{
-		Binds: opts.Volumes,
+		Mounts: opts.Mounts,
 		Resources: container.Resources{
 			Memory:   int64(opts.MemoryLimit) * 1024 * 1024,
 			NanoCPUs: int64(float64(opts.CPULimit) * 1e7),
@@ -142,6 +152,50 @@ func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error
 	}
 
 	return nil
+}
+
+// WaitContainer blocks goroutine and waiting for container finished his job.
+// Returns status code and an error if occurs.
+func (m *Manager) WaitContainer(ctx context.Context, containerID string) (int64, error) {
+	statusCh, errorCh := m.Client.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+
+	select {
+	case err := <-errorCh:
+		if err != nil {
+			return 0, fmt.Errorf("waiting container: %w", err)
+		}
+
+	case res := <-statusCh:
+		if res.Error != nil {
+			return 0, fmt.Errorf("waiting container: container exit error: %s", res.Error.Message)
+		}
+		return res.StatusCode, nil
+
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+
+	return 0, nil
+}
+
+// InspectContainer returns the container information.
+func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*ContainerState, error) {
+	result, err := m.Client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return nil, fmt.Errorf("inspecting container: %w", err)
+	}
+
+	state := result.State
+
+	return &ContainerState{
+		Status:     state.Status,
+		ExitCode:   state.ExitCode,
+		StartedAt:  state.StartedAt,
+		FinishedAt: state.FinishedAt,
+		Running:    state.Running,
+		OOMKilled:  state.OOMKilled,
+		Error:      state.Error,
+	}, nil
 }
 
 func (m *Manager) pullImage(ctx context.Context, img string) error {

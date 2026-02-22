@@ -3,6 +3,7 @@ module pinn
 go 1.25.7
 
 require (
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/go-chi/chi/v5 v5.2.5
