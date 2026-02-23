@@ -4,7 +4,7 @@ type HealthResponse struct {
 	Status string `json:"status"`
 }
 
-type ContainerStateRespone struct {
+type ContainerStateResponse struct {
 	Status     string
 	ExitCode   int
 	StartedAt  string

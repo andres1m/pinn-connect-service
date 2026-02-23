@@ -170,7 +170,7 @@ func (m *Manager) WaitContainer(ctx context.Context, containerID string) (int64,
 }
 
 // InspectContainer returns the container information.
-func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateRespone, error) {
+func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateResponse, error) {
 	result, err := m.Client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("inspecting container: %w", err)
@@ -178,7 +178,7 @@ func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*do
 
 	state := result.State
 
-	return &domain.ContainerStateRespone{
+	return &domain.ContainerStateResponse{
 		Status:     state.Status,
 		ExitCode:   state.ExitCode,
 		StartedAt:  state.StartedAt,
@@ -232,7 +232,7 @@ func (m *Manager) isImageExists(ctx context.Context, img string) (bool, error) {
 	return true, nil
 }
 
-// hasPGUSupport check if current docker client has gpu support (nvidia only)
+// hasGPUSupport check if current docker client has gpu support (nvidia only)
 func (m *Manager) hasGPUSupport(ctx context.Context) (bool, error) {
 	info, err := m.Client.Info(ctx)
 	if err != nil {

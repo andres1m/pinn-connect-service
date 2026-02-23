@@ -10,7 +10,7 @@ import (
 
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	if err := s.healthService.CheckStatus(r.Context()); err != nil {
-		slog.Error(err.Error(), err)
+		slog.Error(err.Error())
 
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(domain.HealthResponse{Status: fmt.Sprintf("error: %v", err.Error())})

@@ -19,18 +19,25 @@ type ContainerManager interface {
 	GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
 	RemoveContainer(ctx context.Context, containerID string) error
 	WaitContainer(ctx context.Context, containerID string) (int64, error)
-	InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateRespone, error)
+	InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateResponse, error)
 	CheckStatus(ctx context.Context) error
+}
+
+type ArtifactStorage interface {
+	Upload(ctx context.Context, objectKey string, r io.Reader, size int64) (string, error)
+	GetDownloadURL(ctx context.Context, objectKey string) (string, error)
 }
 
 type TaskService struct {
 	manager ContainerManager
 	config  *config.Config
+	storage ArtifactStorage
 }
 
-func NewTaskService(manager ContainerManager, config *config.Config) *TaskService {
+func NewTaskService(manager ContainerManager, storage ArtifactStorage, config *config.Config) *TaskService {
 	return &TaskService{
 		manager: manager,
+		storage: storage,
 		config:  config,
 	}
 }
@@ -91,7 +98,50 @@ func (s *TaskService) RunMock(ctx context.Context, taskID string) (string, error
 		slog.Warn("Mock container exited with not zero status", "code", status)
 	}
 
-	return containerID, nil
+	resultDirPath := filepath.Join(tmpdir, taskID, "result")
+
+	entries, err := os.ReadDir(resultDirPath)
+	if err != nil {
+		return "", fmt.Errorf("reading result dir: %w", err)
+	}
+
+	var resultFileName string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			resultFileName = entry.Name()
+			break
+		}
+	}
+
+	if resultFileName == "" {
+		return "", fmt.Errorf("no result file found in directory")
+	}
+
+	resultFilePath := filepath.Join(resultDirPath, resultFileName)
+
+	file, err := os.Open(resultFilePath)
+	if err != nil {
+		return "", fmt.Errorf("opening result file: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("getting file stat: %w", err)
+	}
+
+	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
+
+	_, err = s.storage.Upload(ctx, objectKey, file, stat.Size())
+	if err != nil {
+		return "", fmt.Errorf("uploading artifact to storage: %w", err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(tmpdir, taskID)); err != nil {
+		slog.Error("Failed to cleanup task directory", "taskID", taskID, "error", err)
+	}
+
+	return objectKey, nil
 }
 
 func (s *TaskService) prepareDirs(taskID string) error {

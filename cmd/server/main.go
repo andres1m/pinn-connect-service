@@ -9,6 +9,7 @@ import (
 	"pinn/internal/docker"
 	"pinn/internal/server"
 	"pinn/internal/service"
+	"pinn/internal/storage"
 	"time"
 
 	"github.com/docker/docker/pkg/stdcopy"
@@ -28,7 +29,12 @@ func main() {
 		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
 
-	taskService := service.NewTaskService(manager, cfg)
+	storage, err := storage.NewMinIOStorage(cfg)
+	if err != nil {
+		log.Fatalf("Error while initializing minio storage: %v", err)
+	}
+
+	taskService := service.NewTaskService(manager, storage, cfg)
 	healthService := service.NewHealthService(manager)
 
 	log.Fatal(server.New(taskService, healthService).Run(":8080"))
