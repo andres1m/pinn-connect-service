@@ -4,7 +4,7 @@ import "github.com/caarlos0/env/v11"
 
 type Config struct {
 	TmpDir  string `env:"TMP_DIR"`
-	MockDir string `env:"MOCK_DIR" env_default:"/home/andres1m/go-projects/kursach/mock"`
+	MockDir string `env:"MOCK_DIR" env_default:"./mock"`
 }
 
 func Load() (*Config, error) {

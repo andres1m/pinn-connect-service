@@ -4,23 +4,34 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"pinn/internal/config"
 	"pinn/internal/docker"
+	"pinn/internal/domain"
 
 	"github.com/docker/docker/api/types/mount"
 )
 
-type TaskService struct {
-	dockerManager *docker.Manager
-	config        *config.Config
+type ContainerManager interface {
+	StartContainer(ctx context.Context, image string, options ...docker.RunOption) (string, error)
+	GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
+	RemoveContainer(ctx context.Context, containerID string) error
+	WaitContainer(ctx context.Context, containerID string) (int64, error)
+	InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateRespone, error)
+	CheckStatus(ctx context.Context) error
 }
 
-func NewTaskService(dockerManager *docker.Manager, config *config.Config) *TaskService {
+type TaskService struct {
+	manager ContainerManager
+	config  *config.Config
+}
+
+func NewTaskService(manager ContainerManager, config *config.Config) *TaskService {
 	return &TaskService{
-		dockerManager: dockerManager,
-		config:        config,
+		manager: manager,
+		config:  config,
 	}
 }
 
@@ -35,7 +46,7 @@ func (s *TaskService) RunMock(ctx context.Context, taskID string) (string, error
 
 	tmpdir := s.config.TmpDir
 
-	containerID, err := s.dockerManager.StartContainer(ctx, "python:3.9-slim",
+	containerID, err := s.manager.StartContainer(ctx, "python:3.9-slim",
 		docker.WithMounts(
 			mount.Mount{
 				Type:     mount.TypeBind,
@@ -67,6 +78,17 @@ func (s *TaskService) RunMock(ctx context.Context, taskID string) (string, error
 
 	if err != nil {
 		return "", fmt.Errorf("starting container: %w", err)
+	}
+
+	defer s.manager.RemoveContainer(context.WithoutCancel(ctx), containerID)
+
+	status, err := s.manager.WaitContainer(ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("waiting container: %w", err)
+	}
+
+	if status != 0 {
+		slog.Warn("Mock container exited with not zero status", "code", status)
 	}
 
 	return containerID, nil

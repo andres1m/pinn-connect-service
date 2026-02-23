@@ -1,25 +1,32 @@
 package server
 
 import (
+	"context"
 	"net/http"
-	"pinn/internal/config"
-	"pinn/internal/docker"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-type Server struct {
-	router        *chi.Mux
-	dockerManager *docker.Manager
-	config        *config.Config
+type TaskService interface {
+	RunMock(ctx context.Context, taskID string) (string, error)
 }
 
-func New(dockerManager *docker.Manager, config *config.Config) *Server {
+type HealthService interface {
+	CheckStatus(ctx context.Context) error
+}
+
+type Server struct {
+	router        *chi.Mux
+	taskService   TaskService
+	healthService HealthService
+}
+
+func New(taskService TaskService, healthService HealthService) *Server {
 	s := &Server{
 		router:        chi.NewRouter(),
-		dockerManager: dockerManager,
-		config:        config,
+		taskService:   taskService,
+		healthService: healthService,
 	}
 
 	s.setRoutes()

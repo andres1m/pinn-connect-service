@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"pinn/internal/domain"
 	"strings"
 
 	"github.com/containerd/errdefs"
@@ -13,16 +14,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
-
-type ContainerState struct {
-	Status     string
-	ExitCode   int
-	StartedAt  string
-	FinishedAt string
-	Running    bool
-	OOMKilled  bool
-	Error      string
-}
 
 type Manager struct {
 	Client *client.Client
@@ -179,7 +170,7 @@ func (m *Manager) WaitContainer(ctx context.Context, containerID string) (int64,
 }
 
 // InspectContainer returns the container information.
-func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*ContainerState, error) {
+func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateRespone, error) {
 	result, err := m.Client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("inspecting container: %w", err)
@@ -187,7 +178,7 @@ func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*Co
 
 	state := result.State
 
-	return &ContainerState{
+	return &domain.ContainerStateRespone{
 		Status:     state.Status,
 		ExitCode:   state.ExitCode,
 		StartedAt:  state.StartedAt,
@@ -196,6 +187,11 @@ func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*Co
 		OOMKilled:  state.OOMKilled,
 		Error:      state.Error,
 	}, nil
+}
+
+func (m *Manager) CheckStatus(ctx context.Context) error {
+	_, err := m.Client.Ping(ctx)
+	return err
 }
 
 func (m *Manager) pullImage(ctx context.Context, img string) error {

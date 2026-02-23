@@ -8,6 +8,7 @@ import (
 	"pinn/internal/config"
 	"pinn/internal/docker"
 	"pinn/internal/server"
+	"pinn/internal/service"
 	"time"
 
 	"github.com/docker/docker/pkg/stdcopy"
@@ -27,7 +28,10 @@ func main() {
 		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
 
-	log.Fatal(server.New(manager, cfg).Run(":8080"))
+	taskService := service.NewTaskService(manager, cfg)
+	healthService := service.NewHealthService(manager)
+
+	log.Fatal(server.New(taskService, healthService).Run(":8080"))
 }
 
 func test_docker(ctx context.Context, manager *docker.Manager) {
