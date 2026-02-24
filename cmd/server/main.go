@@ -4,20 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
+	"os/signal"
 	"pinn/internal/config"
 	"pinn/internal/docker"
 	"pinn/internal/server"
 	"pinn/internal/service"
 	"pinn/internal/storage"
-	"time"
+	"syscall"
 
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -29,7 +31,7 @@ func main() {
 		log.Fatalf("Error while initializing Docker client: %v", err)
 	}
 
-	storage, err := storage.NewMinIOStorage(cfg)
+	storage, err := storage.NewMinIOStorage(ctx, cfg)
 	if err != nil {
 		log.Fatalf("Error while initializing minio storage: %v", err)
 	}
@@ -37,7 +39,18 @@ func main() {
 	taskService := service.NewTaskService(manager, storage, cfg)
 	healthService := service.NewHealthService(manager)
 
-	log.Fatal(server.New(taskService, healthService).Run(":8080"))
+	if err := server.New(taskService, healthService).Run(ctx, ":8080"); err != nil {
+		slog.Error("Server stopped with error", "error", err)
+		os.Exit(1)
+	}
+
+	<-ctx.Done()
+	if err := manager.Client.Close(); err != nil {
+		slog.Error("Docker stopped with error", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("correct shutdown")
 }
 
 func test_docker(ctx context.Context, manager *docker.Manager) {

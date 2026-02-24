@@ -14,12 +14,12 @@ services:
       - MINIO_SECRET_KEY=admin123
       - MINIO_USE_SSL=false
       - MINIO_BUCKET=pinn-results
-      - TMP_DIR=/home/andres1m/go-projects/kursach/tmp
-      - MOCK_DIR=/home/andres1m/go-projects/kursach/mock
+      - TMP_DIR=/home/andres1m/GoProjects/pinn-connect-service/tmp
+      - MOCK_DIR=/home/andres1m/GoProjects/pinn-connect-service/mock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock 
-      - /home/andres1m/go-projects/kursach/tmp:/home/andres1m/go-projects/kursach/tmp
-      - /home/andres1m/go-projects/kursach/mock:/home/andres1m/go-projects/kursach/mock
+      - /home/andres1m/GoProjects/pinn-connect-service/tmp:/home/andres1m/GoProjects/pinn-connect-service/tmp
+      - /home/andres1m/GoProjects/pinn-connect-service/mock:/home/andres1m/GoProjects/pinn-connect-service/mock
     depends_on:
       db:
         condition: service_started

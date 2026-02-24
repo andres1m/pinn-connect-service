@@ -14,7 +14,7 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 	defer cancel()
 
 	containerID, err := s.taskService.RunMock(ctx, "mockrun")
