@@ -8,19 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"pinn/internal/config"
-	"pinn/internal/docker"
 	"pinn/internal/domain"
-
-	"github.com/docker/docker/api/types/mount"
 )
 
 type ContainerManager interface {
-	StartContainer(ctx context.Context, image string, options ...docker.RunOption) (string, error)
+	StartContainer(ctx context.Context, image string, config *domain.ContainerConfig) (string, error)
 	GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
 	RemoveContainer(ctx context.Context, containerID string) error
 	WaitContainer(ctx context.Context, containerID string) (int64, error)
 	InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateResponse, error)
-	CheckStatus(ctx context.Context) error
 }
 
 type ArtifactStorage interface {
@@ -53,36 +49,34 @@ func (s *TaskService) RunMock(ctx context.Context, taskID string) (string, error
 
 	tmpdir := s.config.TmpDir
 
-	containerID, err := s.manager.StartContainer(ctx, "python:3.9-slim",
-		docker.WithMounts(
-			mount.Mount{
-				Type:     mount.TypeBind,
+	cfg := &domain.ContainerConfig{
+		Image: "python:3.9-slim",
+		Mounts: []domain.Mount{
+			{
 				Source:   filepath.Join(tmpdir, taskID, "data"),
 				Target:   "/app/data",
 				ReadOnly: true,
 			},
-			mount.Mount{
-				Type:     mount.TypeBind,
+			{
 				Source:   filepath.Join(tmpdir, taskID, "input"),
 				Target:   "/app/input",
 				ReadOnly: true,
 			},
-			mount.Mount{
-				Type:     mount.TypeBind,
+			{
 				Source:   filepath.Join(tmpdir, taskID, "result"),
 				Target:   "/app/result",
 				ReadOnly: false,
 			},
-		),
-
-		docker.WithEnvs(
+		},
+		Envs: []string{
 			"DATA_DIR=/app/data",
 			"RESULT_DIR=/app/result",
-			"INPUT_DIR=/app/input"),
+			"INPUT_DIR=/app/input",
+		},
+		Cmd: []string{"python3", "/app/data/main.py"},
+	}
 
-		docker.WithCmds([]string{"python3", "/app/data/main.py"}),
-	)
-
+	containerID, err := s.manager.StartContainer(ctx, "python:3.9-slim", cfg)
 	if err != nil {
 		return "", fmt.Errorf("starting container: %w", err)
 	}

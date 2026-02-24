@@ -12,6 +12,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 )
 
@@ -40,31 +41,26 @@ func NewManager(ctx context.Context) (*Manager, error) {
 
 // StartContainer starts container with given options.
 // It returns the container id and an error if the process fails.
-func (m *Manager) StartContainer(ctx context.Context, image string, options ...RunOption) (string, error) {
+func (m *Manager) StartContainer(ctx context.Context, image string, cfg *domain.ContainerConfig) (string, error) {
 	if err := m.pullImage(ctx, image); err != nil {
 		return "", fmt.Errorf("pre-pulling image: %w", err)
 	}
 
-	opts := defaultRunOptions()
-	for _, opt := range options {
-		opt(opts)
-	}
-
 	config := &container.Config{
 		Image: image,
-		Env:   opts.Env,
-		Cmd:   opts.Cmd,
+		Env:   cfg.Envs,
+		Cmd:   cfg.Cmd,
 	}
 
 	hostConfig := &container.HostConfig{
-		Mounts: opts.Mounts,
+		Mounts: mapMounts(cfg),
 		Resources: container.Resources{
-			Memory:   int64(opts.MemoryLimit) * 1024 * 1024,
-			NanoCPUs: int64(float64(opts.CPULimit) * 1e7),
+			Memory:   int64(cfg.MemoryLimit) * 1024 * 1024,
+			NanoCPUs: int64(float64(cfg.CPULimit) * 1e7),
 		},
 	}
 
-	if opts.GPU {
+	if cfg.GPU {
 		if m.hasGPU {
 			hostConfig.DeviceRequests = []container.DeviceRequest{
 				{
@@ -87,7 +83,7 @@ func (m *Manager) StartContainer(ctx context.Context, image string, options ...R
 
 	err = m.Client.ContainerStart(ctx, containerID, container.StartOptions{})
 
-	if err != nil && opts.GPU && isGPUDriverError(err) {
+	if err != nil && cfg.GPU && isGPUDriverError(err) {
 		slog.Warn("GPU runtime failed at start. Retrying without GPU...", "error", err)
 
 		err = m.RemoveContainer(ctx, containerID)
@@ -267,4 +263,18 @@ func isGPUDriverError(err error) bool {
 
 	// maybe only possible way to check this error
 	return strings.Contains(err.Error(), "could not select device driver")
+}
+
+func mapMounts(cfg *domain.ContainerConfig) []mount.Mount {
+	var dockerMounts []mount.Mount
+	for _, mnt := range cfg.Mounts {
+		dockerMounts = append(dockerMounts, mount.Mount{
+			Type:     mount.TypeBind,
+			Source:   mnt.Source,
+			Target:   mnt.Target,
+			ReadOnly: mnt.ReadOnly,
+		})
+	}
+
+	return dockerMounts
 }
