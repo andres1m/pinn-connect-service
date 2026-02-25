@@ -21,7 +21,7 @@ type MinIOStorage struct {
 
 func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage, error) {
 	client, err := minio.New(config.MinIOEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(config.MinIOAccesKey, config.MinIOSecretKey, ""),
+		Creds:  credentials.NewStaticV4(config.MinIOAccessKey, config.MinIOSecretKey, ""),
 		Secure: config.MinIOSSLUse,
 	})
 	if err != nil {

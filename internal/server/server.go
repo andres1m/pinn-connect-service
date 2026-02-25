@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"golang.org/x/sync/errgroup"
 )
 
 type TaskService interface {
@@ -43,9 +45,20 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		Handler: s.router,
 	}
 
-	errch := make(chan error, 1)
-	go func() {
-		<-ctx.Done()
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		slog.Info("Starting server", "addr", addr)
+
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("http server failed: %w", err)
+		}
+
+		return nil
+	})
+
+	g.Go(func() error {
+		<-gCtx.Done()
 
 		slog.Info("Shutting down http server...")
 
@@ -53,25 +66,23 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		defer cancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			errch <- err
-		} else {
-			errch <- nil
+			return fmt.Errorf("shutting down server: %w", err)
 		}
 
-	}()
+		slog.Info("HTTP server stopped")
 
-	err := srv.ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("starting server: %w", err)
-	}
+		return nil
+	})
 
-	if err := <-errch; err != nil {
-		return fmt.Errorf("shutting down server: %w", err)
-	}
+	return g.Wait()
+}
 
-	slog.Info("HTTP server stopped")
+func (s *Server) Wait() {
 
-	return nil
+}
+
+func (s *Server) Shutdown() {
+
 }
 
 func (s *Server) setRoutes() {
