@@ -3,13 +3,16 @@ package config
 import "github.com/caarlos0/env/v11"
 
 type Config struct {
-	TmpDir         string `env:"TMP_DIR"`
-	MockDir        string `env:"MOCK_DIR" env_default:"./mock"`
+	TmpDir  string `env:"TMP_DIR"`
+	MockDir string `env:"MOCK_DIR" env_default:"./mock"`
+
 	MinIOEndpoint  string `env:"MINIO_ENDPOINT"`
 	MinIOAccessKey string `env:"MINIO_ACCESS_KEY"`
 	MinIOSecretKey string `env:"MINIO_SECRET_KEY"`
 	MinIOSSLUse    bool   `env:"MINIO_USE_SSL"`
 	MinIOBucket    string `env:"MINIO_BUCKET"`
+
+	ServerPort string `env:"SERVER_PORT" env_default:":8080"`
 }
 
 func Load() (*Config, error) {

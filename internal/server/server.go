@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"golang.org/x/sync/errgroup"
 )
 
 type TaskService interface {
@@ -45,21 +44,18 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		Handler: s.router,
 	}
 
-	g, gCtx := errgroup.WithContext(ctx)
+	errch := make(chan error, 1)
 
-	g.Go(func() error {
+	go func() {
 		slog.Info("Starting server", "addr", addr)
 
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("http server failed: %w", err)
+			errch <- fmt.Errorf("http server failed: %w", err)
 		}
+	}()
 
-		return nil
-	})
-
-	g.Go(func() error {
-		<-gCtx.Done()
-
+	select {
+	case <-ctx.Done():
 		slog.Info("Shutting down http server...")
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -72,17 +68,9 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		slog.Info("HTTP server stopped")
 
 		return nil
-	})
-
-	return g.Wait()
-}
-
-func (s *Server) Wait() {
-
-}
-
-func (s *Server) Shutdown() {
-
+	case err := <-errch:
+		return err
+	}
 }
 
 func (s *Server) setRoutes() {

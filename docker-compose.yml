@@ -16,6 +16,7 @@ services:
       - MINIO_BUCKET=pinn-results
       - TMP_DIR=/home/andres1m/go-projects/kursach/tmp
       - MOCK_DIR=/home/andres1m/go-projects/kursach/mock
+      - SERVER_PORT=:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock 
       - /home/andres1m/go-projects/kursach/tmp:/home/andres1m/go-projects/kursach/tmp

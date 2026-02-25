@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -17,35 +17,44 @@ import (
 func main() {
 	slog.SetDefault(slog.Default())
 
+	if err := run(); err != nil {
+		slog.Error("application stopped with error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		return fmt.Errorf("error loading config: %w", err)
 	}
 
 	manager, err := docker.NewManager(ctx)
 	if err != nil {
-		log.Fatalf("Error while initializing Docker client: %v", err)
+		return fmt.Errorf("error while initializing Docker client: %w", err)
 	}
+	defer func() {
+		slog.Info("closing Docker client...")
+		if err := manager.Client.Close(); err != nil {
+			slog.Error("failed to close Docker client", "error", err)
+		}
+	}()
 
 	storage, err := storage.NewMinIOStorage(ctx, cfg)
 	if err != nil {
-		log.Fatalf("Error while initializing minio storage: %v", err)
+		return fmt.Errorf("error while initializing minio storage: %w", err)
 	}
 
 	taskService := service.NewTaskService(manager, storage, cfg)
 	healthService := service.NewHealthService(manager)
 
-	if err := server.New(taskService, healthService).Run(ctx, ":8080"); err != nil {
-		log.Fatalf("Server stopped with error: %v", err)
+	// blocking Run() call
+	if err := server.New(taskService, healthService).Run(ctx, cfg.ServerPort); err != nil {
+		return fmt.Errorf("server stopped with error: %w", err)
 	}
 
-	<-ctx.Done()
-	if err := manager.Client.Close(); err != nil {
-		log.Fatalf("Docker stopped with error: %v", err)
-	}
-
-	slog.Info("correct shutdown")
+	return nil
 }

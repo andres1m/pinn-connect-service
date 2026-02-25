@@ -8,7 +8,6 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/minio/minio-go/v7 v7.0.98
-	golang.org/x/sync v0.19.0
 )
 
 require (
