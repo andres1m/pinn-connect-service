@@ -10,7 +10,7 @@ CREATE TABLE tasks (
     id UUID PRIMARY KEY,
     model_id VARCHAR(255) NOT NULL,
     
-    input_path VARCHAR(512) NOT NULL,
+    input_filename VARCHAR(512) NOT NULL,
     result_path VARCHAR(512),
     
     signature VARCHAR(64) NOT NULL,
@@ -18,6 +18,9 @@ CREATE TABLE tasks (
     status task_status NOT NULL DEFAULT 'initializing',
     
     container_id VARCHAR(64),
+    container_image VARCHAR(255),
+    container_envs TEXT[],
+    container_cmd TEXT[],
     error_log TEXT,
     
     scheduled_at TIMESTAMPTZ,

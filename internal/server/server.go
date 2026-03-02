@@ -6,14 +6,20 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"pinn/internal/domain"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 )
 
 type TaskService interface {
-	RunMock(ctx context.Context, taskID string) (string, error)
+	CreateTask(ctx context.Context, task *domain.Task) error
+	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
+	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
+
+	RunMock(ctx context.Context) (string, error)
 }
 
 type HealthService interface {

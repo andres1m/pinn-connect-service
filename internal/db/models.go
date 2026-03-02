@@ -57,20 +57,23 @@ func (ns NullTaskStatus) Value() (driver.Value, error) {
 }
 
 type Task struct {
-	ID          pgtype.UUID
-	ModelID     string
-	InputPath   string
-	ResultPath  pgtype.Text
-	Signature   string
-	Status      TaskStatus
-	ContainerID pgtype.Text
-	ErrorLog    pgtype.Text
-	ScheduledAt pgtype.Timestamptz
-	StartedAt   pgtype.Timestamptz
-	FinishedAt  pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-	MemLim      pgtype.Int4
-	CpuLim      pgtype.Int4
-	GpuEnable   pgtype.Bool
+	ID             pgtype.UUID
+	ModelID        string
+	InputFilename  string
+	ResultPath     pgtype.Text
+	Signature      string
+	Status         TaskStatus
+	ContainerID    pgtype.Text
+	ContainerImage pgtype.Text
+	ContainerEnvs  []string
+	ContainerCmd   []string
+	ErrorLog       pgtype.Text
+	ScheduledAt    pgtype.Timestamptz
+	StartedAt      pgtype.Timestamptz
+	FinishedAt     pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	MemLim         pgtype.Int4
+	CpuLim         pgtype.Int4
+	GpuEnable      pgtype.Bool
 }

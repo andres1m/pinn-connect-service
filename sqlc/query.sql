@@ -1,8 +1,8 @@
 -- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_path, signature, status, scheduled_at, error_log, mem_lim, cpu_lim, gpu_enable
+    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable
 ) VALUES (
-    $1, $2, $3, $4, COALESCE(NULLIF($5::task_status, ''), 'initializing'), $6, $7, $8, $9, $10
+    $1, $2, $3, $4, sqlc.arg('status')::task_status, $5, $6, $7, $8, $9, $10, $11, $12
 )
 RETURNING *;
 
@@ -16,7 +16,7 @@ WHERE signature = $1 AND status = 'completed'
 LIMIT 1;
 
 -- name: GetNextQueuedTask :one
-SELECT id, model_id, input_path, signature, scheduled_at, mem_lim, cpu_lim, gpu_enable 
+SELECT *
 FROM tasks
 WHERE status = 'queued' 
   AND (scheduled_at IS NULL OR scheduled_at <= NOW())

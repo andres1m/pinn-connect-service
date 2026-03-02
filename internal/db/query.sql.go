@@ -13,48 +13,57 @@ import (
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_path, signature, status, scheduled_at, error_log, mem_lim, cpu_lim, gpu_enable
+    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable
 ) VALUES (
-    $1, $2, $3, $4, COALESCE(NULLIF($5::task_status, ''), 'initializing'), $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $13::task_status, $5, $6, $7, $8, $9, $10, $11, $12
 )
-RETURNING id, model_id, input_path, result_path, signature, status, container_id, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
 
 type CreateTaskParams struct {
-	ID          pgtype.UUID
-	ModelID     string
-	InputPath   string
-	Signature   string
-	Column5     TaskStatus
-	ScheduledAt pgtype.Timestamptz
-	ErrorLog    pgtype.Text
-	MemLim      pgtype.Int4
-	CpuLim      pgtype.Int4
-	GpuEnable   pgtype.Bool
+	ID             pgtype.UUID
+	ModelID        string
+	InputFilename  string
+	Signature      string
+	ScheduledAt    pgtype.Timestamptz
+	ContainerImage pgtype.Text
+	ContainerEnvs  []string
+	ContainerCmd   []string
+	ErrorLog       pgtype.Text
+	MemLim         pgtype.Int4
+	CpuLim         pgtype.Int4
+	GpuEnable      pgtype.Bool
+	Status         TaskStatus
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
 	row := q.db.QueryRow(ctx, createTask,
 		arg.ID,
 		arg.ModelID,
-		arg.InputPath,
+		arg.InputFilename,
 		arg.Signature,
-		arg.Column5,
 		arg.ScheduledAt,
+		arg.ContainerImage,
+		arg.ContainerEnvs,
+		arg.ContainerCmd,
 		arg.ErrorLog,
 		arg.MemLim,
 		arg.CpuLim,
 		arg.GpuEnable,
+		arg.Status,
 	)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
 		&i.ResultPath,
 		&i.Signature,
 		&i.Status,
 		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
 		&i.ErrorLog,
 		&i.ScheduledAt,
 		&i.StartedAt,
@@ -82,7 +91,7 @@ func (q *Queries) FindCachedTask(ctx context.Context, signature string) (pgtype.
 }
 
 const getNextQueuedTask = `-- name: GetNextQueuedTask :one
-SELECT id, model_id, input_path, signature, scheduled_at, mem_lim, cpu_lim, gpu_enable 
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 FROM tasks
 WHERE status = 'queued' 
   AND (scheduled_at IS NULL OR scheduled_at <= NOW())
@@ -91,26 +100,26 @@ LIMIT 1
 FOR UPDATE SKIP LOCKED
 `
 
-type GetNextQueuedTaskRow struct {
-	ID          pgtype.UUID
-	ModelID     string
-	InputPath   string
-	Signature   string
-	ScheduledAt pgtype.Timestamptz
-	MemLim      pgtype.Int4
-	CpuLim      pgtype.Int4
-	GpuEnable   pgtype.Bool
-}
-
-func (q *Queries) GetNextQueuedTask(ctx context.Context) (GetNextQueuedTaskRow, error) {
+func (q *Queries) GetNextQueuedTask(ctx context.Context) (Task, error) {
 	row := q.db.QueryRow(ctx, getNextQueuedTask)
-	var i GetNextQueuedTaskRow
+	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
+		&i.ResultPath,
 		&i.Signature,
+		&i.Status,
+		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
+		&i.ErrorLog,
 		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
@@ -149,7 +158,7 @@ func (q *Queries) GetRunningTasksContainers(ctx context.Context) ([]GetRunningTa
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, model_id, input_path, result_path, signature, status, container_id, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable FROM tasks
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable FROM tasks
 WHERE id = $1 LIMIT 1
 `
 
@@ -159,11 +168,14 @@ func (q *Queries) GetTaskByID(ctx context.Context, id pgtype.UUID) (Task, error)
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
 		&i.ResultPath,
 		&i.Signature,
 		&i.Status,
 		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
 		&i.ErrorLog,
 		&i.ScheduledAt,
 		&i.StartedAt,
@@ -185,7 +197,7 @@ SET
     finished_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_path, result_path, signature, status, container_id, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
 
 type MarkTaskCompletedParams struct {
@@ -199,11 +211,14 @@ func (q *Queries) MarkTaskCompleted(ctx context.Context, arg MarkTaskCompletedPa
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
 		&i.ResultPath,
 		&i.Signature,
 		&i.Status,
 		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
 		&i.ErrorLog,
 		&i.ScheduledAt,
 		&i.StartedAt,
@@ -225,7 +240,7 @@ SET
     finished_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_path, result_path, signature, status, container_id, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
 
 type MarkTaskFailedParams struct {
@@ -239,11 +254,14 @@ func (q *Queries) MarkTaskFailed(ctx context.Context, arg MarkTaskFailedParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
 		&i.ResultPath,
 		&i.Signature,
 		&i.Status,
 		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
 		&i.ErrorLog,
 		&i.ScheduledAt,
 		&i.StartedAt,
@@ -265,7 +283,7 @@ SET
     started_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_path, result_path, signature, status, container_id, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
 
 type MarkTaskRunningParams struct {
@@ -279,11 +297,14 @@ func (q *Queries) MarkTaskRunning(ctx context.Context, arg MarkTaskRunningParams
 	err := row.Scan(
 		&i.ID,
 		&i.ModelID,
-		&i.InputPath,
+		&i.InputFilename,
 		&i.ResultPath,
 		&i.Signature,
 		&i.Status,
 		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
 		&i.ErrorLog,
 		&i.ScheduledAt,
 		&i.StartedAt,

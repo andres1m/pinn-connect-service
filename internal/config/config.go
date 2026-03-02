@@ -3,6 +3,8 @@ package config
 import "github.com/caarlos0/env/v11"
 
 type Config struct {
+	DBURL string `env:"DB_URL"`
+
 	TmpDir  string `env:"TMP_DIR"`
 	MockDir string `env:"MOCK_DIR" env_default:"./mock"`
 

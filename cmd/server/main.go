@@ -8,10 +8,13 @@ import (
 	"os/signal"
 	"pinn/internal/config"
 	"pinn/internal/docker"
+	"pinn/internal/repository"
 	"pinn/internal/server"
 	"pinn/internal/service"
 	"pinn/internal/storage"
 	"syscall"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -48,7 +51,14 @@ func run() error {
 		return fmt.Errorf("error while initializing minio storage: %w", err)
 	}
 
-	taskService := service.NewTaskService(manager, storage, cfg)
+	pool, err := pgxpool.New(context.Background(), cfg.DBURL)
+	if err != nil {
+		return fmt.Errorf("error while creating new pgxpool: %w", err)
+	}
+
+	repo := repository.NewTaskRepository(pool)
+
+	taskService := service.NewTaskService(manager, storage, cfg, repo)
 	healthService := service.NewHealthService(manager)
 
 	// blocking Run() call

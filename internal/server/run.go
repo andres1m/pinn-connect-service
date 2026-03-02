@@ -10,14 +10,17 @@ import (
 )
 
 func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
-
+	//TODO implement
+	// generate uuid
+	// create workspace
+	// mark as queued
 }
 
 func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 	defer cancel()
 
-	containerID, err := s.taskService.RunMock(ctx, "mockrun")
+	containerID, err := s.taskService.RunMock(ctx)
 	if err != nil {
 		log.Printf("Error while starting mock task: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
