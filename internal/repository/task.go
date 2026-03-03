@@ -136,6 +136,18 @@ func (r *TaskRepository) MarkTaskFailed(ctx context.Context, task *domain.Task) 
 	return nil
 }
 
+func (r *TaskRepository) MarkTaskQueued(ctx context.Context, task *domain.Task) error {
+	dbtask, err := r.queries.MarkTaskQueued(ctx, pgtype.UUID{Bytes: task.ID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("marking task queued: %w", err)
+	}
+
+	task.UpdatedAt = dbtask.UpdatedAt.Time
+	task.Status = domain.TaskStatus(dbtask.Status)
+
+	return nil
+}
+
 func (r *TaskRepository) GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error) {
 	resp, err := r.queries.GetRunningTasksContainers(ctx)
 	if err != nil {

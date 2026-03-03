@@ -44,6 +44,14 @@ SET
 WHERE id = $1
 RETURNING *;
 
+-- name: MarkTaskQueued :one
+UPDATE tasks
+SET 
+    status = 'queued',
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
 -- name: MarkTaskFailed :one
 UPDATE tasks
 SET 

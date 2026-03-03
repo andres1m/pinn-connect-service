@@ -12,6 +12,7 @@ import (
 	"pinn/internal/server"
 	"pinn/internal/service"
 	"pinn/internal/storage"
+	"pinn/internal/workspace"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,7 +59,9 @@ func run() error {
 
 	repo := repository.NewTaskRepository(pool)
 
-	taskService := service.NewTaskService(manager, storage, cfg, repo)
+	workspace := workspace.NewLocalWorkspace(cfg)
+
+	taskService := service.NewTaskService(manager, storage, cfg, repo, workspace)
 	healthService := service.NewHealthService(manager)
 
 	// blocking Run() call

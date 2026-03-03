@@ -41,13 +41,13 @@ func NewManager(ctx context.Context) (*Manager, error) {
 
 // StartContainer starts container with given options.
 // It returns the container id and an error if the process fails.
-func (m *Manager) StartContainer(ctx context.Context, image string, cfg *domain.ContainerConfig) (string, error) {
-	if err := m.pullImage(ctx, image); err != nil {
+func (m *Manager) StartContainer(ctx context.Context, cfg *domain.ContainerConfig) (string, error) {
+	if err := m.pullImage(ctx, cfg.Image); err != nil {
 		return "", fmt.Errorf("pre-pulling image: %w", err)
 	}
 
 	config := &container.Config{
-		Image: image,
+		Image: cfg.Image,
 		Env:   cfg.Envs,
 		Cmd:   cfg.Cmd,
 	}
