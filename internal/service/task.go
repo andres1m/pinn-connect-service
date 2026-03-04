@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"pinn/internal/config"
 	"pinn/internal/domain"
+	"sync"
+	"time"
 
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
@@ -37,6 +39,7 @@ type TaskRepository interface {
 	MarkTaskFailed(context.Context, *domain.Task) error
 	MarkTaskQueued(context.Context, *domain.Task) error
 	GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error)
+	GetNextQueuedTask(ctx context.Context) (*domain.Task, error)
 }
 
 type Workspace interface {
@@ -73,9 +76,7 @@ func (s *TaskService) CreateTask(ctx context.Context, task *domain.Task) error {
 }
 
 // worker gouroutine should use it
-func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) error {
-	var err error
-
+func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err error) {
 	defer func() {
 		if err := s.workspace.Cleanup(task.ID); err != nil {
 			slog.Error("Error while cleanup workspace", "error", err)
@@ -85,7 +86,9 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) error 
 	// mark failed if err occurs while run
 	defer func() {
 		if err != nil {
-			s.repository.MarkTaskFailed(ctx, task)
+			markCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			s.repository.MarkTaskFailed(markCtx, task)
 		}
 	}()
 
@@ -186,6 +189,66 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 
 func (s *TaskService) RunMock(ctx context.Context) (string, error) {
 	return "", nil
+}
+
+func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
+	sem := make(chan struct{}, s.config.MaxWorkers)
+	ticker := time.NewTicker(2 * time.Second)
+
+	wg.Go(func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("worker stopped, waiting for active tasks to finish...")
+				// filling the semaphore ensures that all goroutine tasks are completed
+				for i := 0; i < cap(sem); i++ {
+					sem <- struct{}{}
+				}
+				slog.Info("all active tasks finished")
+				return
+
+			case <-ticker.C:
+				s.processQueue(ctx, sem, wg)
+			}
+		}
+	})
+}
+
+func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup) {
+	for {
+		select {
+		case sem <- struct{}{}:
+
+		default:
+			return
+		}
+
+		task, err := s.repository.GetNextQueuedTask(ctx)
+		if err != nil {
+			slog.Error("failed to get next task", "error", err)
+			<-sem
+			return
+		}
+
+		if task == nil {
+			<-sem
+			return // no queued tasks, waiting for next call
+		}
+
+		wg.Add(1)
+		go func(t *domain.Task) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			taskCtx := context.WithoutCancel(ctx)
+
+			if err := s.ProcessTask(taskCtx, t); err != nil {
+				slog.Error("error while processing task", "id", t.ID, "error", err)
+			}
+		}(task)
+	}
 }
 
 func createMounts(tmpdir string, taskID uuid.UUID) *[]domain.Mount {

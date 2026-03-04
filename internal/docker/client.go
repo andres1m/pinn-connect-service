@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"pinn/internal/domain"
 	"strings"
 
@@ -200,13 +199,15 @@ func (m *Manager) pullImage(ctx context.Context, img string) error {
 		return nil
 	}
 
+	slog.Info("pulling image...")
+
 	rc, err := m.Client.ImagePull(ctx, img, image.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("pulling image: %w", err)
 	}
 
 	defer rc.Close()
-	_, err = io.Copy(os.Stdout, rc)
+	_, err = io.Copy(io.Discard, rc)
 	if err != nil {
 		return fmt.Errorf("pulling image: %w", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"pinn/internal/service"
 	"pinn/internal/storage"
 	"pinn/internal/workspace"
+	"sync"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,10 +66,15 @@ func run() error {
 	taskService := service.NewTaskService(manager, storage, cfg, repo, workspace)
 	healthService := service.NewHealthService(manager)
 
+	var wg sync.WaitGroup
+	taskService.StartWorker(ctx, &wg)
+
 	// blocking Run() call
 	if err := server.New(taskService, healthService).Run(ctx, cfg.ServerPort); err != nil {
 		return fmt.Errorf("server stopped with error: %w", err)
 	}
+
+	wg.Wait()
 
 	return nil
 }

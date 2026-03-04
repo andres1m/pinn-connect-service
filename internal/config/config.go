@@ -5,8 +5,9 @@ import "github.com/caarlos0/env/v11"
 type Config struct {
 	DBURL string `env:"DB_URL"`
 
-	TmpDir  string `env:"TMP_DIR"`
-	MockDir string `env:"MOCK_DIR" env_default:"./mock"`
+	TmpDir     string `env:"TMP_DIR"`
+	MockDir    string `env:"MOCK_DIR" env_default:"./mock"`
+	MaxWorkers int    `env:"MAX_WORKERS" env_default:"5"`
 
 	MinIOEndpoint  string `env:"MINIO_ENDPOINT"`
 	MinIOAccessKey string `env:"MINIO_ACCESS_KEY"`
