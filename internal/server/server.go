@@ -50,13 +50,18 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		Handler: s.router,
 	}
 
-	errch := make(chan error, 1)
+	errch := make(chan error)
 
 	go func() {
 		slog.Info("Starting server", "addr", addr)
 
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errch <- fmt.Errorf("http server failed: %w", err)
+			wrappedErr := fmt.Errorf("http server failed: %w", err)
+			select {
+			case errch <- wrappedErr:
+			default:
+				slog.Error("server failed during/after stopped", "error", err)
+			}
 		}
 	}()
 

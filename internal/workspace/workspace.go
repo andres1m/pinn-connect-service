@@ -21,10 +21,6 @@ func NewLocalWorkspace(config *config.Config) *LocalWorkspace {
 func (w *LocalWorkspace) Prepare(taskID uuid.UUID) error {
 	mainPath := filepath.Join(w.config.TmpDir, taskID.String())
 
-	if err := createDir(mainPath, "data"); err != nil { // TODO think about this; if code use ready docker images with all files inside -> remove this
-		return fmt.Errorf("creating data dir: %w", err)
-	}
-
 	if err := createDir(mainPath, "input"); err != nil {
 		return fmt.Errorf("creating input dir: %w", err)
 	}

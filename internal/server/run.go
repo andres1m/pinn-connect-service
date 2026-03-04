@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"pinn/internal/domain"
 	"time"
@@ -22,12 +22,14 @@ func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {
 
 	containerID, err := s.taskService.RunMock(ctx)
 	if err != nil {
-		log.Printf("Error while starting mock task: %v", err)
+		slog.Error("Error while starting mock task", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(domain.RunMockResponse{ContainerID: containerID})
+	err = json.NewEncoder(w).Encode(domain.RunMockResponse{ContainerID: containerID})
+
+	http.Error(w, err.Error(), http.StatusInternalServerError)
 }

@@ -52,10 +52,11 @@ func run() error {
 		return fmt.Errorf("error while initializing minio storage: %w", err)
 	}
 
-	pool, err := pgxpool.New(context.Background(), cfg.DBURL)
+	pool, err := pgxpool.New(ctx, cfg.DBURL)
 	if err != nil {
 		return fmt.Errorf("error while creating new pgxpool: %w", err)
 	}
+	defer pool.Close()
 
 	repo := repository.NewTaskRepository(pool)
 

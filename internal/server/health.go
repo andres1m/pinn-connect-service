@@ -9,6 +9,8 @@ import (
 )
 
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	if err := s.healthService.CheckStatus(r.Context()); err != nil {
 		slog.Error(err.Error())
 
@@ -26,6 +28,5 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.Write(resBytes)
 }

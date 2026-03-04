@@ -74,13 +74,37 @@ func (s *TaskService) CreateTask(ctx context.Context, task *domain.Task) error {
 
 // worker gouroutine should use it
 func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) error {
-	defer s.workspace.Cleanup(task.ID)
+	var err error
 
-	// start and wait container
+	defer func() {
+		if err := s.workspace.Cleanup(task.ID); err != nil {
+			slog.Error("Error while cleanup workspace", "error", err)
+		}
+	}()
+
+	// mark failed if err occurs while run
+	defer func() {
+		if err != nil {
+			s.repository.MarkTaskFailed(ctx, task)
+		}
+	}()
+
+	// start container
 	containerID, err := s.manager.StartContainer(ctx, &domain.ContainerConfig{
 		Image:  task.ContainerImage,
 		Mounts: *createMounts(s.config.TmpDir, task.ID),
+		Cmd:    task.ContainerCmd,
+		Envs:   task.ContainerEnvs,
 	})
+	if err != nil {
+		return fmt.Errorf("starting container: %w", err)
+	}
+
+	defer func() {
+		if err := s.manager.RemoveContainer(ctx, task.ContainerID); err != nil {
+			slog.Error("Error while removing container", "error", err)
+		}
+	}()
 
 	task.ContainerID = containerID
 
@@ -90,10 +114,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) error 
 		return fmt.Errorf("marking task running: %w", err)
 	}
 
-	if err != nil {
-		return fmt.Errorf("starting container: %w", err)
-	}
-
+	// wait for container end
 	exitCode, err := s.manager.WaitContainer(ctx, task.ContainerID)
 	if err != nil {
 		errlog, logerr := s.getErrLogs(ctx, task.ContainerID)
@@ -119,53 +140,18 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) error 
 	}
 
 	// upload result to storage
-	entries, err := os.ReadDir(s.workspace.ResultDir(task.ID))
+
+	resPath, err := s.uploadToStorage(ctx, task.ID)
 	if err != nil {
-		return fmt.Errorf("reading result dir: %w", err)
+		return fmt.Errorf("upload to storage: %w", err)
 	}
 
-	var resultFileName string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			resultFileName = entry.Name()
-			break
-		}
-	}
-
-	if resultFileName == "" {
-		return fmt.Errorf("no result file found in directory")
-	}
-
-	resultFilePath := filepath.Join(s.workspace.ResultDir(task.ID), resultFileName)
-
-	file, err := os.Open(resultFilePath)
-	if err != nil {
-		return fmt.Errorf("opening result file: %w", err)
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("getting file stat: %w", err)
-	}
-
-	objectKey := fmt.Sprintf("tasks/%s/%s", task.ID, resultFileName)
-	_, err = s.storage.Upload(ctx, objectKey, file, stat.Size())
-	if err != nil {
-		return fmt.Errorf("saving to S3 storage: %w", err)
-	}
-
-	task.ResultPath = objectKey
+	task.ResultPath = resPath
 
 	// mark as completed
 	err = s.repository.MarkTaskCompleted(ctx, task)
 	if err != nil {
 		return fmt.Errorf("marking task completed: %w", err)
-	}
-
-	err = s.manager.RemoveContainer(ctx, task.ContainerID)
-	if err != nil {
-		return fmt.Errorf("removing container: %w", err)
 	}
 
 	return nil
@@ -199,167 +185,11 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 }
 
 func (s *TaskService) RunMock(ctx context.Context) (string, error) {
-	taskID := uuid.New()
-
-	if err := s.workspace.Prepare(taskID); err != nil {
-		return "", fmt.Errorf("preparing dirs for mock run: %w", err)
-	}
-
-	if err := s.copyFromMock(taskID.String()); err != nil {
-		return "", fmt.Errorf("copying from mock: %w", err)
-	}
-
-	tmpdir := s.config.TmpDir
-
-	cfg := &domain.ContainerConfig{
-		Image: "python:3.9-slim",
-		Mounts: []domain.Mount{
-			{
-				Source:   filepath.Join(tmpdir, taskID.String(), "data"),
-				Target:   "/app/data",
-				ReadOnly: true,
-			},
-			{
-				Source:   filepath.Join(tmpdir, taskID.String(), "input"),
-				Target:   "/app/input",
-				ReadOnly: true,
-			},
-			{
-				Source:   filepath.Join(tmpdir, taskID.String(), "result"),
-				Target:   "/app/result",
-				ReadOnly: false,
-			},
-		},
-		Envs: []string{
-			"DATA_DIR=/app/data",
-			"RESULT_DIR=/app/result",
-			"INPUT_DIR=/app/input",
-		},
-		Cmd: []string{"python3", "/app/data/main.py"},
-	}
-
-	containerID, err := s.manager.StartContainer(ctx, cfg)
-	if err != nil {
-		return "", fmt.Errorf("starting container: %w", err)
-	}
-
-	defer s.manager.RemoveContainer(context.WithoutCancel(ctx), containerID)
-
-	status, err := s.manager.WaitContainer(ctx, containerID)
-	if err != nil {
-		return "", fmt.Errorf("waiting container: %w", err)
-	}
-
-	if status != 0 {
-		slog.Warn("Mock container exited with not zero status", "code", status)
-	}
-
-	resultDirPath := filepath.Join(tmpdir, taskID.String(), "result")
-
-	entries, err := os.ReadDir(resultDirPath)
-	if err != nil {
-		return "", fmt.Errorf("reading result dir: %w", err)
-	}
-
-	var resultFileName string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			resultFileName = entry.Name()
-			break
-		}
-	}
-
-	if resultFileName == "" {
-		return "", fmt.Errorf("no result file found in directory")
-	}
-
-	resultFilePath := filepath.Join(resultDirPath, resultFileName)
-
-	file, err := os.Open(resultFilePath)
-	if err != nil {
-		return "", fmt.Errorf("opening result file: %w", err)
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return "", fmt.Errorf("getting file stat: %w", err)
-	}
-
-	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
-
-	_, err = s.storage.Upload(ctx, objectKey, file, stat.Size())
-	if err != nil {
-		return "", fmt.Errorf("uploading artifact to storage: %w", err)
-	}
-
-	if err := os.RemoveAll(filepath.Join(tmpdir, taskID.String())); err != nil {
-		slog.Error("Failed to cleanup task directory", "taskID", taskID, "error", err)
-	}
-
-	return objectKey, nil
-}
-
-func (s *TaskService) copyFromMock(taskID string) error {
-	tmpdir := s.config.TmpDir
-	mockDir := s.config.MockDir
-
-	err := copyFile(filepath.Join(mockDir, "data.json"), filepath.Join(tmpdir, taskID, "data", "data.json"))
-	if err != nil {
-		return fmt.Errorf("copying from mock data: %w", err)
-	}
-
-	err = copyFile(filepath.Join(mockDir, "main.py"), filepath.Join(tmpdir, taskID, "data", "main.py"))
-	if err != nil {
-		return fmt.Errorf("copying from mock data: %w", err)
-	}
-
-	err = copyFile(filepath.Join(mockDir, "input.json"), filepath.Join(tmpdir, taskID, "input", "input.json"))
-	if err != nil {
-		return fmt.Errorf("copying from mock input: %w", err)
-	}
-
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	sourceInfo, err := sourceFile.Stat()
-	if err != nil {
-		return err
-	}
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	err = os.Chmod(dst, sourceInfo.Mode())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return "", nil
 }
 
 func createMounts(tmpdir string, taskID uuid.UUID) *[]domain.Mount {
 	return &[]domain.Mount{
-		{
-			Source:   filepath.Join(tmpdir, taskID.String(), "data"),
-			Target:   "/app/data",
-			ReadOnly: true,
-		},
 		{
 			Source:   filepath.Join(tmpdir, taskID.String(), "input"),
 			Target:   "/app/input",
@@ -388,4 +218,44 @@ func (s *TaskService) getErrLogs(ctx context.Context, containerID string) (strin
 	}
 
 	return stderr.String(), nil
+}
+
+func (s *TaskService) uploadToStorage(ctx context.Context, taskID uuid.UUID) (string, error) {
+	entries, err := os.ReadDir(s.workspace.ResultDir(taskID))
+	if err != nil {
+		return "", fmt.Errorf("reading result dir: %w", err)
+	}
+
+	var resultFileName string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			resultFileName = entry.Name()
+			break
+		}
+	}
+
+	if resultFileName == "" {
+		return "", fmt.Errorf("no result file found in directory")
+	}
+
+	resultFilePath := filepath.Join(s.workspace.ResultDir(taskID), resultFileName)
+
+	file, err := os.Open(resultFilePath)
+	if err != nil {
+		return "", fmt.Errorf("opening result file: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("getting file stat: %w", err)
+	}
+
+	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
+	_, err = s.storage.Upload(ctx, objectKey, file, stat.Size())
+	if err != nil {
+		return "", fmt.Errorf("saving to S3 storage: %w", err)
+	}
+
+	return objectKey, nil
 }
