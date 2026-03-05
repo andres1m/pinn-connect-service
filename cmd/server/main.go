@@ -76,6 +76,7 @@ func run() error {
 
 	var wg sync.WaitGroup
 	taskService.StartWorker(ctx, &wg)
+	taskService.StartScheduler(ctx)
 
 	// blocking Run() call
 	if err := server.New(taskService, healthService).Run(ctx, cfg.ServerPort); err != nil {

@@ -87,3 +87,10 @@ RETURNING *;
 -- name: GetRunningTasksContainers :many
 SELECT id, container_id FROM tasks
 WHERE status = 'running' AND container_id IS NOT NULL;
+
+-- name: GetUpcomingScheduledTasks :many
+SELECT * FROM tasks
+WHERE status = 'scheduled'
+AND scheduled_at <= $1
+ORDER BY scheduled_at ASC;
+

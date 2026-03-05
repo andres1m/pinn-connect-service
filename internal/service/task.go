@@ -37,6 +37,7 @@ type TaskRepository interface {
 	Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error
 	GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error)
 	GetNextQueuedTask(ctx context.Context) (*domain.Task, error)
+	GetScheduledTasks(ctx context.Context, time time.Time) ([]domain.Task, error)
 }
 
 type Workspace interface {
@@ -187,6 +188,49 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	fmt.Println(time.Since(start))
 
 	return nil
+}
+
+func (s *TaskService) StartScheduler(ctx context.Context) {
+	ticker := time.NewTicker(20 * time.Second)
+	var mu sync.Mutex
+
+	scheduled := make(map[uuid.UUID]struct{})
+
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				tasks, err := s.repository.GetScheduledTasks(ctx, time.Now().Add(30*time.Second))
+				if err != nil {
+					slog.Error("error getting scheduled task")
+					continue
+				}
+
+				for _, task := range tasks {
+					mu.Lock()
+
+					if _, ok := scheduled[task.ID]; ok {
+						mu.Unlock()
+						continue
+					}
+
+					scheduled[task.ID] = struct{}{}
+					mu.Unlock()
+
+					delay := time.Until(*task.ScheduledAt)
+					time.AfterFunc(delay, func() {
+						s.repository.Mark(ctx, &task, domain.TaskQueued)
+						mu.Lock()
+						delete(scheduled, task.ID)
+						mu.Unlock()
+					})
+				}
+			}
+		}
+	}()
 }
 
 func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error) {

@@ -78,7 +78,11 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.taskService.Mark(r.Context(), &task, domain.TaskQueued)
+	if task.ScheduledAt != nil && task.ScheduledAt.After(time.Now()) {
+		s.taskService.Mark(r.Context(), &task, domain.TaskScheduled)
+	} else {
+		s.taskService.Mark(r.Context(), &task, domain.TaskQueued)
+	}
 
 	success = true
 
@@ -97,6 +101,7 @@ func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
 	task.CPULim = req.CPULimit
 	task.MemLim = req.MemoryLimit
 	task.GPUEnabled = req.GPUEnabled
+	task.ScheduledAt = req.ScheduledAt
 }
 
 func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {

@@ -194,6 +194,53 @@ func (q *Queries) GetTaskByID(ctx context.Context, id pgtype.UUID) (Task, error)
 	return i, err
 }
 
+const getUpcomingScheduledTasks = `-- name: GetUpcomingScheduledTasks :many
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable FROM tasks
+WHERE status = 'scheduled'
+AND scheduled_at <= $1
+ORDER BY scheduled_at ASC
+`
+
+func (q *Queries) GetUpcomingScheduledTasks(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getUpcomingScheduledTasks, scheduledAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.ModelID,
+			&i.InputFilename,
+			&i.ResultPath,
+			&i.Signature,
+			&i.Status,
+			&i.ContainerID,
+			&i.ContainerImage,
+			&i.ContainerEnvs,
+			&i.ContainerCmd,
+			&i.ErrorLog,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemLim,
+			&i.CpuLim,
+			&i.GpuEnable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markTaskCompleted = `-- name: MarkTaskCompleted :one
 UPDATE tasks
 SET 

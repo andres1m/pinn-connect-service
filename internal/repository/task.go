@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"pinn/internal/db"
 	"pinn/internal/domain"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -89,6 +90,20 @@ func (r *TaskRepository) FindCachedTask(ctx context.Context, task *domain.Task) 
 	}
 
 	return resultPath.String, nil
+}
+
+func (r *TaskRepository) GetScheduledTasks(ctx context.Context, time time.Time) ([]domain.Task, error) {
+	resp, err := r.queries.GetUpcomingScheduledTasks(ctx, pgtype.Timestamptz{Time: time, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("getting scheduled tasks: %w", err)
+	}
+
+	result := []domain.Task{}
+	for _, res := range resp {
+		result = append(result, *dbTaskToDomainTask(&res))
+	}
+
+	return result, nil
 }
 
 func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error {
