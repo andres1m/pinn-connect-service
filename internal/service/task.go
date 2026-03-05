@@ -34,10 +34,7 @@ type TaskRepository interface {
 	Create(context.Context, *domain.Task) error
 	GetTaskById(context.Context, uuid.UUID) (*domain.Task, error)
 	FindCachedTask(context.Context, *domain.Task) (string, error)
-	MarkTaskRunning(context.Context, *domain.Task) error
-	MarkTaskCompleted(context.Context, *domain.Task) error
-	MarkTaskFailed(context.Context, *domain.Task) error
-	MarkTaskQueued(context.Context, *domain.Task) error
+	Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error
 	GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error)
 	GetNextQueuedTask(ctx context.Context) (*domain.Task, error)
 }
@@ -83,9 +80,16 @@ func (s *TaskService) SaveInput(taskID uuid.UUID, filename string, r io.Reader) 
 	return nil
 }
 
-func (s *TaskService) CreateAndQueueTask(ctx context.Context, task *domain.Task) error {
+func (s *TaskService) Create(ctx context.Context, task *domain.Task) error {
 	if err := s.repository.Create(ctx, task); err != nil {
-		return fmt.Errorf("creating queued task in repository: %w", err)
+		return fmt.Errorf("creating task in repository: %w", err)
+	}
+	return nil
+}
+
+func (s *TaskService) Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error {
+	if err := s.repository.Mark(ctx, task, status); err != nil {
+		return fmt.Errorf("marking task: %w", err)
 	}
 	return nil
 }
@@ -111,7 +115,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 		if err != nil {
 			markCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			s.repository.MarkTaskFailed(markCtx, task)
+			s.repository.Mark(markCtx, task, domain.TaskFailed)
 		}
 	}()
 
@@ -135,7 +139,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	task.ContainerID = containerID
 
 	// mark as running
-	err = s.repository.MarkTaskRunning(ctx, task)
+	err = s.repository.Mark(ctx, task, domain.TaskRunning)
 	if err != nil {
 		return fmt.Errorf("marking task running: %w", err)
 	}
@@ -175,7 +179,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	task.ResultPath = resPath
 
 	// mark as completed
-	err = s.repository.MarkTaskCompleted(ctx, task)
+	err = s.repository.Mark(ctx, task, domain.TaskCompleted)
 	if err != nil {
 		return fmt.Errorf("marking task completed: %w", err)
 	}
@@ -200,7 +204,7 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 		return "", fmt.Errorf("getting task from repo: %w", err)
 	}
 
-	if task.Status != domain.TaskComplete {
+	if task.Status != domain.TaskCompleted {
 		return "", nil
 	}
 

@@ -18,7 +18,8 @@ import (
 type TaskService interface {
 	PrepareWorkspace(taskID uuid.UUID) error
 	SaveInput(taskID uuid.UUID, filename string, r io.Reader) error
-	CreateAndQueueTask(ctx context.Context, task *domain.Task) error
+	Create(ctx context.Context, task *domain.Task) error
+	Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error
 	CleanupWorkspace(taskID uuid.UUID) error
 	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)

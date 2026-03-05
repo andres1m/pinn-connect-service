@@ -280,6 +280,42 @@ func (q *Queries) MarkTaskFailed(ctx context.Context, arg MarkTaskFailedParams) 
 	return i, err
 }
 
+const markTaskInitializing = `-- name: MarkTaskInitializing :one
+UPDATE tasks
+SET 
+    status = 'initializing',
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+`
+
+func (q *Queries) MarkTaskInitializing(ctx context.Context, id pgtype.UUID) (Task, error) {
+	row := q.db.QueryRow(ctx, markTaskInitializing, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.ModelID,
+		&i.InputFilename,
+		&i.ResultPath,
+		&i.Signature,
+		&i.Status,
+		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
+		&i.ErrorLog,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MemLim,
+		&i.CpuLim,
+		&i.GpuEnable,
+	)
+	return i, err
+}
+
 const markTaskQueued = `-- name: MarkTaskQueued :one
 UPDATE tasks
 SET 
@@ -334,6 +370,48 @@ type MarkTaskRunningParams struct {
 
 func (q *Queries) MarkTaskRunning(ctx context.Context, arg MarkTaskRunningParams) (Task, error) {
 	row := q.db.QueryRow(ctx, markTaskRunning, arg.ID, arg.ContainerID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.ModelID,
+		&i.InputFilename,
+		&i.ResultPath,
+		&i.Signature,
+		&i.Status,
+		&i.ContainerID,
+		&i.ContainerImage,
+		&i.ContainerEnvs,
+		&i.ContainerCmd,
+		&i.ErrorLog,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MemLim,
+		&i.CpuLim,
+		&i.GpuEnable,
+	)
+	return i, err
+}
+
+const markTaskScheduled = `-- name: MarkTaskScheduled :one
+UPDATE tasks
+SET 
+    status = 'scheduled',
+    updated_at = NOW(),
+    scheduled_at = $2
+WHERE id = $1
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+`
+
+type MarkTaskScheduledParams struct {
+	ID          pgtype.UUID
+	ScheduledAt pgtype.Timestamptz
+}
+
+func (q *Queries) MarkTaskScheduled(ctx context.Context, arg MarkTaskScheduledParams) (Task, error) {
+	row := q.db.QueryRow(ctx, markTaskScheduled, arg.ID, arg.ScheduledAt)
 	var i Task
 	err := row.Scan(
 		&i.ID,

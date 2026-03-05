@@ -15,6 +15,7 @@ type TaskStatus string
 
 const (
 	TaskStatusInitializing TaskStatus = "initializing"
+	TaskStatusScheduled    TaskStatus = "scheduled"
 	TaskStatusQueued       TaskStatus = "queued"
 	TaskStatusRunning      TaskStatus = "running"
 	TaskStatusCompleted    TaskStatus = "completed"

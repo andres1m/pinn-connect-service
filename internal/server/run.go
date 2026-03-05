@@ -55,19 +55,15 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "invalid json metadata", http.StatusBadRequest)
 				return
 			}
-			task.ModelID = req.ModelID
-			task.ContainerImage = req.ContainerImage
-			task.ContainerCmd = req.ContainerCmd
-			task.ContainerEnvs = req.ContainerEnvs
-			task.CPULim = req.CPULimit
-			task.MemLim = req.MemoryLimit
-			task.GPUEnabled = req.GPUEnabled
+
+			mapReqToTask(&req, &task)
+
+			s.taskService.Create(r.Context(), &task)
 
 			taskProcessed = true
 
 		case "file":
 			task.InputFilename = part.FileName()
-			// Стриминг файла напрямую на диск независимо от того, был ли уже прочитан JSON
 			if err := s.taskService.SaveInput(task.ID, task.InputFilename, part); err != nil {
 				slog.Error("save input failed", "task_id", task.ID, "error", err)
 				http.Error(w, "internal error", http.StatusInternalServerError)
@@ -82,12 +78,7 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task.Status = domain.TaskQueued
-	if err := s.taskService.CreateAndQueueTask(r.Context(), &task); err != nil {
-		slog.Error("database insert failed", "task_id", task.ID, "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
+	s.taskService.Mark(r.Context(), &task, domain.TaskQueued)
 
 	success = true
 
@@ -96,6 +87,16 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{"task_id": task.ID.String()}); err != nil {
 		slog.Error("failed to write response", "task_id", task.ID, "error", err)
 	}
+}
+
+func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
+	task.ModelID = req.ModelID
+	task.ContainerImage = req.ContainerImage
+	task.ContainerCmd = req.ContainerCmd
+	task.ContainerEnvs = req.ContainerEnvs
+	task.CPULim = req.CPULimit
+	task.MemLim = req.MemoryLimit
+	task.GPUEnabled = req.GPUEnabled
 }
 
 func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {

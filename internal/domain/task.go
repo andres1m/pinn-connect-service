@@ -10,8 +10,9 @@ type TaskStatus string
 
 const (
 	TaskInitializing TaskStatus = "initializing"
+	TaskScheduled    TaskStatus = "scheduled"
 	TaskRunning      TaskStatus = "running"
-	TaskComplete     TaskStatus = "completed"
+	TaskCompleted    TaskStatus = "completed"
 	TaskFailed       TaskStatus = "failed"
 	TaskQueued       TaskStatus = "queued"
 )

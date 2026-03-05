@@ -91,13 +91,50 @@ func (r *TaskRepository) FindCachedTask(ctx context.Context, task *domain.Task) 
 	return resultPath.String, nil
 }
 
-func (r *TaskRepository) MarkTaskRunning(ctx context.Context, task *domain.Task) error {
+func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error {
+	switch status {
+	case domain.TaskInitializing:
+		if err := r.markTaskInitializing(ctx, task); err != nil {
+			return fmt.Errorf("marking task initializing: %w", err)
+		}
+		return nil
+	case domain.TaskScheduled:
+		if err := r.markTaskScheduled(ctx, task); err != nil {
+			return fmt.Errorf("marking task scheduled: %w", err)
+		}
+		return nil
+	case domain.TaskQueued:
+		if err := r.markTaskQueued(ctx, task); err != nil {
+			return fmt.Errorf("marking tassk queued: %w", err)
+		}
+		return nil
+	case domain.TaskRunning:
+		if err := r.markTaskRunning(ctx, task); err != nil {
+			return fmt.Errorf("marking task running: %w", err)
+		}
+		return nil
+	case domain.TaskFailed:
+		if err := r.markTaskFailed(ctx, task); err != nil {
+			return fmt.Errorf("marking task failed: %w", err)
+		}
+		return nil
+	case domain.TaskCompleted:
+		if err := r.markTaskCompleted(ctx, task); err != nil {
+			return fmt.Errorf("marking rask completed: %w", err)
+		}
+		return nil
+	}
+
+	return errors.New("unsupported task status")
+}
+
+func (r *TaskRepository) markTaskRunning(ctx context.Context, task *domain.Task) error {
 	dbtask, err := r.queries.MarkTaskRunning(ctx, db.MarkTaskRunningParams{
 		ID:          pgtype.UUID{Bytes: task.ID, Valid: true},
 		ContainerID: pgtype.Text{String: task.ContainerID, Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("marking task running: %w", err)
+		return fmt.Errorf("db query for marking task running: %w", err)
 	}
 
 	task.UpdatedAt = dbtask.UpdatedAt.Time
@@ -106,13 +143,13 @@ func (r *TaskRepository) MarkTaskRunning(ctx context.Context, task *domain.Task)
 	return nil
 }
 
-func (r *TaskRepository) MarkTaskCompleted(ctx context.Context, task *domain.Task) error {
+func (r *TaskRepository) markTaskCompleted(ctx context.Context, task *domain.Task) error {
 	dbtask, err := r.queries.MarkTaskCompleted(ctx, db.MarkTaskCompletedParams{
 		ID:         pgtype.UUID{Bytes: task.ID, Valid: true},
 		ResultPath: pgtype.Text{String: task.ResultPath, Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("marking task completed: %w", err)
+		return fmt.Errorf("db query for marking task completed: %w", err)
 	}
 
 	task.UpdatedAt = dbtask.UpdatedAt.Time
@@ -121,13 +158,13 @@ func (r *TaskRepository) MarkTaskCompleted(ctx context.Context, task *domain.Tas
 	return nil
 }
 
-func (r *TaskRepository) MarkTaskFailed(ctx context.Context, task *domain.Task) error {
+func (r *TaskRepository) markTaskFailed(ctx context.Context, task *domain.Task) error {
 	dbtask, err := r.queries.MarkTaskFailed(ctx, db.MarkTaskFailedParams{
 		ID:       pgtype.UUID{Bytes: task.ID, Valid: true},
 		ErrorLog: pgtype.Text{String: task.ErrorLog, Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("marking task failed: %w", err)
+		return fmt.Errorf("db query for marking task failed: %w", err)
 	}
 
 	task.UpdatedAt = dbtask.UpdatedAt.Time
@@ -136,10 +173,41 @@ func (r *TaskRepository) MarkTaskFailed(ctx context.Context, task *domain.Task) 
 	return nil
 }
 
-func (r *TaskRepository) MarkTaskQueued(ctx context.Context, task *domain.Task) error {
+func (r *TaskRepository) markTaskQueued(ctx context.Context, task *domain.Task) error {
 	dbtask, err := r.queries.MarkTaskQueued(ctx, pgtype.UUID{Bytes: task.ID, Valid: true})
 	if err != nil {
-		return fmt.Errorf("marking task queued: %w", err)
+		return fmt.Errorf("db query for marking task queued: %w", err)
+	}
+
+	task.UpdatedAt = dbtask.UpdatedAt.Time
+	task.Status = domain.TaskStatus(dbtask.Status)
+
+	return nil
+}
+
+func (r *TaskRepository) markTaskInitializing(ctx context.Context, task *domain.Task) error {
+	dbtask, err := r.queries.MarkTaskInitializing(ctx, pgtype.UUID{Bytes: task.ID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("db query for marking task initializing: %w", err)
+	}
+
+	task.UpdatedAt = dbtask.UpdatedAt.Time
+	task.Status = domain.TaskStatus(dbtask.Status)
+
+	return nil
+}
+
+func (r *TaskRepository) markTaskScheduled(ctx context.Context, task *domain.Task) error {
+	if task.ScheduledAt == nil {
+		return errors.New("scheduledAt field must be not null")
+	}
+
+	dbtask, err := r.queries.MarkTaskScheduled(ctx, db.MarkTaskScheduledParams{
+		ID:          pgtype.UUID{Bytes: task.ID, Valid: true},
+		ScheduledAt: pgtype.Timestamptz{Time: *task.ScheduledAt, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("db query for marking task scheduled: %w", err)
 	}
 
 	task.UpdatedAt = dbtask.UpdatedAt.Time
