@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import time
 
 def main():
     data_dir = os.environ.get('DATA_DIR', '.')
@@ -29,6 +30,8 @@ def main():
         x = input_values.get('x', 0)
         weight = model_data.get('weight', 1.0)
         bias = model_data.get('bias', 0.0)
+
+        time.sleep(10)
         
         result_value = x * weight + bias
 

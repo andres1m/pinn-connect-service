@@ -17,6 +17,8 @@ COPY --from=builder /pinn-server /usr/local/bin/pinn-server
 
 WORKDIR /app
 
+COPY --from=builder /app/migrations ./migrations
+
 EXPOSE 8080
 
 ENTRYPOINT ["pinn-server"]

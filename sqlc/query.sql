@@ -16,13 +16,18 @@ WHERE signature = $1 AND status = 'completed'
 LIMIT 1;
 
 -- name: GetNextQueuedTask :one
-SELECT *
-FROM tasks
-WHERE status = 'queued' 
-  AND (scheduled_at IS NULL OR scheduled_at <= NOW())
-ORDER BY scheduled_at ASC
+UPDATE tasks
+SET status = 'running', updated_at = NOW()
+WHERE id = (
+    SELECT id
+    FROM tasks
+    WHERE status = 'queued'
+    AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+    ORDER BY scheduled_at ASC
 LIMIT 1
-FOR UPDATE SKIP LOCKED;
+FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
 
 -- name: MarkTaskRunning :one
 UPDATE tasks

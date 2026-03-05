@@ -8,8 +8,8 @@ import (
 	"pinn/internal/domain"
 	"strings"
 
-	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
@@ -199,7 +199,12 @@ func (m *Manager) pullImage(ctx context.Context, img string) error {
 		return nil
 	}
 
-	slog.Info("pulling image...")
+	// If it's likely a local image (no dots or slashes), don't try to pull it
+	if !strings.Contains(img, "/") && !strings.Contains(img, ".") {
+		return fmt.Errorf("image %s not found locally and doesn't look like a remote image", img)
+	}
+
+	slog.Info("pulling image...", "image", img)
 
 	rc, err := m.Client.ImagePull(ctx, img, image.PullOptions{})
 	if err != nil {
@@ -216,17 +221,29 @@ func (m *Manager) pullImage(ctx context.Context, img string) error {
 }
 
 func (m *Manager) isImageExists(ctx context.Context, img string) (bool, error) {
-	_, err := m.Client.ImageInspect(ctx, img)
+	// _, _, err := m.Client.ImageInspectWithRaw(ctx, img)
 
+	// if err != nil {
+	// 	if errdefs.IsNotFound(err) {
+	// 		return false, nil
+	// 	}
+
+	// 	return false, fmt.Errorf("checking if image exists: %w", err)
+	// }
+
+	// return true, nil
+
+	args := filters.NewArgs()
+	args.Add("reference", img)
+
+	images, err := m.Client.ImageList(ctx, image.ListOptions{
+		Filters: args,
+	})
 	if err != nil {
-		if errdefs.IsNotFound(err) {
-			return false, nil
-		}
-
-		return false, fmt.Errorf("checking if image exists: %w", err)
+		return false, fmt.Errorf("listing images: %w", err)
 	}
 
-	return true, nil
+	return len(images) > 0, nil
 }
 
 // hasGPUSupport check if current docker client has gpu support (nvidia only)

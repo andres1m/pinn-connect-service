@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"pinn/internal/domain"
@@ -15,7 +16,10 @@ import (
 )
 
 type TaskService interface {
-	CreateTask(ctx context.Context, task *domain.Task) error
+	PrepareWorkspace(taskID uuid.UUID) error
+	SaveInput(taskID uuid.UUID, filename string, r io.Reader) error
+	CreateAndQueueTask(ctx context.Context, task *domain.Task) error
+	CleanupWorkspace(taskID uuid.UUID) error
 	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
 

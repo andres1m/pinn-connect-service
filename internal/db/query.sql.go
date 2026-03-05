@@ -91,13 +91,18 @@ func (q *Queries) FindCachedTask(ctx context.Context, signature string) (pgtype.
 }
 
 const getNextQueuedTask = `-- name: GetNextQueuedTask :one
-SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
-FROM tasks
-WHERE status = 'queued' 
-  AND (scheduled_at IS NULL OR scheduled_at <= NOW())
-ORDER BY scheduled_at ASC
+UPDATE tasks
+SET status = 'running', updated_at = NOW()
+WHERE id = (
+    SELECT id
+    FROM tasks
+    WHERE status = 'queued'
+    AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+    ORDER BY scheduled_at ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED
+)
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
 
 func (q *Queries) GetNextQueuedTask(ctx context.Context) (Task, error) {

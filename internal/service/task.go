@@ -46,6 +46,7 @@ type Workspace interface {
 	Prepare(uuid.UUID) error
 	ResultDir(taskID uuid.UUID) string
 	Cleanup(taskID uuid.UUID) error
+	SaveInput(taskID uuid.UUID, filename string, r io.Reader) error
 }
 
 type TaskService struct {
@@ -66,17 +67,39 @@ func NewTaskService(manager ContainerManager, storage ArtifactStorage, config *c
 	}
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, task *domain.Task) error {
-	err := s.repository.MarkTaskQueued(ctx, task)
-	if err != nil {
-		return fmt.Errorf("marking task queued: %w", err)
+func (s *TaskService) PrepareWorkspace(taskID uuid.UUID) error {
+	if err := s.workspace.Prepare(taskID); err != nil {
+		return fmt.Errorf("preparing task workspace: %w", err)
 	}
 
 	return nil
 }
 
+func (s *TaskService) SaveInput(taskID uuid.UUID, filename string, r io.Reader) error {
+	if err := s.workspace.SaveInput(taskID, filename, r); err != nil {
+		return fmt.Errorf("saving input file in task workspace: %w", err)
+	}
+
+	return nil
+}
+
+func (s *TaskService) CreateAndQueueTask(ctx context.Context, task *domain.Task) error {
+	if err := s.repository.Create(ctx, task); err != nil {
+		return fmt.Errorf("creating queued task in repository: %w", err)
+	}
+	return nil
+}
+
+func (s *TaskService) CleanupWorkspace(taskID uuid.UUID) error {
+	if err := s.workspace.Cleanup(taskID); err != nil {
+		return fmt.Errorf("cleaning up task workspace: %w", err)
+	}
+	return nil
+}
+
 // worker gouroutine should use it
 func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err error) {
+	start := time.Now()
 	defer func() {
 		if err := s.workspace.Cleanup(task.ID); err != nil {
 			slog.Error("Error while cleanup workspace", "error", err)
@@ -156,6 +179,8 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	if err != nil {
 		return fmt.Errorf("marking task completed: %w", err)
 	}
+
+	fmt.Println(time.Since(start))
 
 	return nil
 }
