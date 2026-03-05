@@ -67,6 +67,23 @@ SET
 WHERE id = $1
 RETURNING *;
 
+-- name: MarkTaskInitializing :one
+UPDATE tasks
+SET 
+    status = 'initializing',
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: MarkTaskScheduled :one
+UPDATE tasks
+SET 
+    status = 'scheduled',
+    updated_at = NOW(),
+    scheduled_at = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: GetRunningTasksContainers :many
 SELECT id, container_id FROM tasks
 WHERE status = 'running' AND container_id IS NOT NULL;

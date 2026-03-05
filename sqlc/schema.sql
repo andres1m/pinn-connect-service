@@ -1,5 +1,6 @@
 CREATE TYPE task_status AS ENUM (
     'initializing',
+    'scheduled',
     'queued',
     'running',
     'completed',
