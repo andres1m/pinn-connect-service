@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"pinn/internal/domain"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,8 +96,9 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sort.Strings(task.ContainerEnvs)
 	finalHasher := sha256.New()
-	finalHasher.Write([]byte(task.ModelID + "|"))
+	finalHasher.Write([]byte(task.ModelID + "|" + strings.Join(task.ContainerEnvs, ",") + "|" + strings.Join(task.ContainerCmd, ",") + "|"))
 	finalHasher.Write(fileHashBytes)
 
 	task.Signature = hex.EncodeToString(finalHasher.Sum(nil))
