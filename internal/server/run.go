@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -58,7 +57,11 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 			mapReqToTask(&req, &task)
 
-			s.taskService.Create(r.Context(), &task)
+			if err := s.taskService.Create(r.Context(), &task); err != nil {
+				slog.Error("saving task using task service", "error", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
 
 			taskProcessed = true
 
@@ -79,9 +82,17 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if task.ScheduledAt != nil && task.ScheduledAt.After(time.Now()) {
-		s.taskService.Mark(r.Context(), &task, domain.TaskScheduled)
+		if err := s.taskService.Mark(r.Context(), &task, domain.TaskScheduled); err != nil {
+			slog.Error("marking task as scheduled", "error", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 	} else {
-		s.taskService.Mark(r.Context(), &task, domain.TaskQueued)
+		if err := s.taskService.Mark(r.Context(), &task, domain.TaskQueued); err != nil {
+			slog.Error("marking task as queued", "error", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	success = true
@@ -102,23 +113,4 @@ func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
 	task.MemLim = req.MemoryLimit
 	task.GPUEnabled = req.GPUEnabled
 	task.ScheduledAt = req.ScheduledAt
-}
-
-func (s *Server) HandleRunMock(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
-	defer cancel()
-
-	containerID, err := s.taskService.RunMock(ctx)
-	if err != nil {
-		slog.Error("error while starting mock task", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	err = json.NewEncoder(w).Encode(domain.RunMockResponse{ContainerID: containerID})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }

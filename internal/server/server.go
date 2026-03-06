@@ -23,8 +23,6 @@ type TaskService interface {
 	CleanupWorkspace(taskID uuid.UUID) error
 	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
-
-	RunMock(ctx context.Context) (string, error)
 }
 
 type HealthService interface {
@@ -94,5 +92,4 @@ func (s *Server) setRoutes() {
 	s.router.Get("/health", s.HandleHealth)
 	s.router.Post("/run", s.HandleRun)
 	s.router.Get("/status", s.HandleStatus)
-	s.router.Post("/runmock", s.HandleRunMock)
 }

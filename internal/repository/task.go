@@ -120,7 +120,7 @@ func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status dom
 		return nil
 	case domain.TaskQueued:
 		if err := r.markTaskQueued(ctx, task); err != nil {
-			return fmt.Errorf("marking tassk queued: %w", err)
+			return fmt.Errorf("marking task queued: %w", err)
 		}
 		return nil
 	case domain.TaskRunning:
@@ -135,7 +135,7 @@ func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status dom
 		return nil
 	case domain.TaskCompleted:
 		if err := r.markTaskCompleted(ctx, task); err != nil {
-			return fmt.Errorf("marking rask completed: %w", err)
+			return fmt.Errorf("marking task completed: %w", err)
 		}
 		return nil
 	}

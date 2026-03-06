@@ -123,7 +123,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	// start container
 	containerID, err := s.manager.StartContainer(ctx, &domain.ContainerConfig{
 		Image:  task.ContainerImage,
-		Mounts: *createMounts(s.config.TmpDir, task.ID),
+		Mounts: createMounts(s.config.TmpDir, task.ID),
 		Cmd:    task.ContainerCmd,
 		Envs:   task.ContainerEnvs,
 	})
@@ -132,7 +132,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	}
 
 	defer func() {
-		if err := s.manager.RemoveContainer(ctx, task.ContainerID); err != nil {
+		if err := s.manager.RemoveContainer(ctx, containerID); err != nil {
 			slog.Error("Error while removing container", "error", err)
 		}
 	}()
@@ -162,7 +162,7 @@ func (s *TaskService) ProcessTask(ctx context.Context, task *domain.Task) (err e
 	if exitCode != 0 {
 		errlog, err := s.getErrLogs(ctx, task.ContainerID)
 		if err != nil {
-			return fmt.Errorf("getting container erorr logs: %w", err)
+			return fmt.Errorf("getting container error logs: %w", err)
 		}
 
 		task.ErrorLog = errlog
@@ -260,10 +260,6 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 	return result, nil
 }
 
-func (s *TaskService) RunMock(ctx context.Context) (string, error) {
-	return "", nil
-}
-
 func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
 	sem := make(chan struct{}, s.config.MaxWorkers)
 	ticker := time.NewTicker(2 * time.Second)
@@ -324,8 +320,8 @@ func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *s
 	}
 }
 
-func createMounts(tmpdir string, taskID uuid.UUID) *[]domain.Mount {
-	return &[]domain.Mount{
+func createMounts(tmpdir string, taskID uuid.UUID) []domain.Mount {
+	return []domain.Mount{
 		{
 			Source:   filepath.Join(tmpdir, taskID.String(), "input"),
 			Target:   "/app/input",
