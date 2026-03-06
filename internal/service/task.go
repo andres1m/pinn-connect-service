@@ -33,7 +33,7 @@ type ArtifactStorage interface {
 type TaskRepository interface {
 	Create(context.Context, *domain.Task) error
 	GetTaskById(context.Context, uuid.UUID) (*domain.Task, error)
-	FindCachedTask(context.Context, *domain.Task) (string, error)
+	FindCachedTask(context.Context, string) (string, error)
 	Mark(ctx context.Context, task *domain.Task, status domain.TaskStatus) error
 	GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error)
 	GetNextQueuedTask(ctx context.Context) (*domain.Task, error)
@@ -93,6 +93,14 @@ func (s *TaskService) Mark(ctx context.Context, task *domain.Task, status domain
 		return fmt.Errorf("marking task: %w", err)
 	}
 	return nil
+}
+
+func (s *TaskService) FindCachedTask(ctx context.Context, signature string) (string, error) {
+	resPath, err := s.repository.FindCachedTask(ctx, signature)
+	if err != nil {
+		return "", fmt.Errorf("finding cached task: %w", err)
+	}
+	return resPath, nil
 }
 
 func (s *TaskService) CleanupWorkspace(taskID uuid.UUID) error {

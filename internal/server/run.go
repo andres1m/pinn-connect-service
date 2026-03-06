@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -37,6 +39,8 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	var fileHashBytes []byte
+
 	for {
 		part, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {
@@ -57,41 +61,76 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 			mapReqToTask(&req, &task)
 
-			if err := s.taskService.Create(r.Context(), &task); err != nil {
-				slog.Error("saving task using task service", "error", err)
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-
 			taskProcessed = true
 
 		case "file":
 			task.InputFilename = part.FileName()
-			if err := s.taskService.SaveInput(task.ID, task.InputFilename, part); err != nil {
+
+			fileHasher := sha256.New()
+			tee := io.TeeReader(part, fileHasher)
+
+			if err := s.taskService.SaveInput(task.ID, task.InputFilename, tee); err != nil {
 				slog.Error("save input failed", "task_id", task.ID, "error", err)
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			}
+
+			fileHashBytes = fileHasher.Sum(nil)
+
 			fileProcessed = true
 		}
 	}
+
+	finalHasher := sha256.New()
+	finalHasher.Write([]byte(task.ModelID + "|"))
+	finalHasher.Write(fileHashBytes)
+
+	task.Signature = hex.EncodeToString(finalHasher.Sum(nil))
 
 	if !fileProcessed || !taskProcessed {
 		http.Error(w, "both 'file' and 'task' parts are required", http.StatusBadRequest)
 		return
 	}
 
-	if task.ScheduledAt != nil && task.ScheduledAt.After(time.Now()) {
-		if err := s.taskService.Mark(r.Context(), &task, domain.TaskScheduled); err != nil {
-			slog.Error("marking task as scheduled", "error", err)
+	// try to find task in hash; if founded -> set status completed, result_path as in source task
+	// TODO: maybe add new status "completed_hash"
+	if err := s.taskService.Create(r.Context(), &task); err != nil {
+		slog.Error("saving task using task service", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	resultPath, err := s.taskService.FindCachedTask(r.Context(), task.Signature)
+	if err != nil {
+		slog.Error("finding cached task", "error", err)
+	} else if resultPath != "" {
+		task.ResultPath = resultPath
+		if err := s.taskService.Mark(r.Context(), &task, domain.TaskCompleted); err != nil {
+			slog.Error("marking task as completed", "error", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-	} else {
-		if err := s.taskService.Mark(r.Context(), &task, domain.TaskQueued); err != nil {
-			slog.Error("marking task as queued", "error", err)
+
+		if err := s.taskService.CleanupWorkspace(task.ID); err != nil {
+			slog.Error("cleaning workspace", "error", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
+		}
+	}
+
+	if task.Status != domain.TaskCompleted {
+		if task.ScheduledAt != nil && task.ScheduledAt.After(time.Now()) {
+			if err := s.taskService.Mark(r.Context(), &task, domain.TaskScheduled); err != nil {
+				slog.Error("marking task as scheduled", "error", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			if err := s.taskService.Mark(r.Context(), &task, domain.TaskQueued); err != nil {
+				slog.Error("marking task as queued", "error", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 

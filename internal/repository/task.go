@@ -80,8 +80,8 @@ func (r *TaskRepository) GetNextQueuedTask(ctx context.Context) (*domain.Task, e
 	return dbTaskToDomainTask(&dbtask), nil
 }
 
-func (r *TaskRepository) FindCachedTask(ctx context.Context, task *domain.Task) (string, error) {
-	resultPath, err := r.queries.FindCachedTask(ctx, task.Signature)
+func (r *TaskRepository) FindCachedTask(ctx context.Context, signature string) (string, error) {
+	resultPath, err := r.queries.FindCachedTask(ctx, signature)
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}

@@ -23,6 +23,7 @@ type TaskService interface {
 	CleanupWorkspace(taskID uuid.UUID) error
 	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
+	FindCachedTask(ctx context.Context, signature string) (string, error)
 }
 
 type HealthService interface {
