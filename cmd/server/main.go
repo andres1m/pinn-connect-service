@@ -67,11 +67,13 @@ func run() error {
 	}
 	defer pool.Close()
 
-	repo := repository.NewTaskRepository(pool)
+	taskRepo := repository.NewTaskRepository(pool)
+	modelRepo := repository.NewModelRepository(pool)
 
 	workspace := workspace.NewLocalWorkspace(cfg)
 
-	taskService := service.NewTaskService(manager, storage, cfg, repo, workspace)
+	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace)
+	modelService := service.NewModelService(modelRepo)
 	healthService := service.NewHealthService(manager)
 
 	var wg sync.WaitGroup
@@ -79,7 +81,7 @@ func run() error {
 	taskService.StartScheduler(ctx)
 
 	// blocking Run() call
-	if err := server.New(taskService, healthService).Run(ctx, cfg.ServerPort); err != nil {
+	if err := server.New(taskService, modelService, healthService).Run(ctx, cfg.ServerPort); err != nil {
 		return fmt.Errorf("server stopped with error: %w", err)
 	}
 

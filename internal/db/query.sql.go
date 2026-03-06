@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createModel = `-- name: CreateModel :one
+INSERT INTO models (id, container_image) VALUES ($1, $2) RETURNING id, container_image, created_at, updated_at
+`
+
+type CreateModelParams struct {
+	ID             string
+	ContainerImage string
+}
+
+func (q *Queries) CreateModel(ctx context.Context, arg CreateModelParams) (Model, error) {
+	row := q.db.QueryRow(ctx, createModel, arg.ID, arg.ContainerImage)
+	var i Model
+	err := row.Scan(
+		&i.ID,
+		&i.ContainerImage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
     id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable
@@ -77,6 +98,15 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 	return i, err
 }
 
+const deleteModel = `-- name: DeleteModel :exec
+DELETE FROM models WHERE id = $1
+`
+
+func (q *Queries) DeleteModel(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteModel, id)
+	return err
+}
+
 const findCachedTask = `-- name: FindCachedTask :one
 SELECT result_path FROM tasks
 WHERE signature = $1 AND status = 'completed'
@@ -88,6 +118,22 @@ func (q *Queries) FindCachedTask(ctx context.Context, signature string) (pgtype.
 	var result_path pgtype.Text
 	err := row.Scan(&result_path)
 	return result_path, err
+}
+
+const getModelByID = `-- name: GetModelByID :one
+SELECT id, container_image, created_at, updated_at FROM models WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetModelByID(ctx context.Context, id string) (Model, error) {
+	row := q.db.QueryRow(ctx, getModelByID, id)
+	var i Model
+	err := row.Scan(
+		&i.ID,
+		&i.ContainerImage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getNextQueuedTask = `-- name: GetNextQueuedTask :one
@@ -230,6 +276,35 @@ func (q *Queries) GetUpcomingScheduledTasks(ctx context.Context, scheduledAt pgt
 			&i.MemLim,
 			&i.CpuLim,
 			&i.GpuEnable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listModels = `-- name: ListModels :many
+SELECT id, container_image, created_at, updated_at FROM models ORDER BY id
+`
+
+func (q *Queries) ListModels(ctx context.Context) ([]Model, error) {
+	rows, err := q.db.Query(ctx, listModels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Model
+	for rows.Next() {
+		var i Model
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContainerImage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -482,4 +557,22 @@ func (q *Queries) MarkTaskScheduled(ctx context.Context, arg MarkTaskScheduledPa
 		&i.GpuEnable,
 	)
 	return i, err
+}
+
+const updateModel = `-- name: UpdateModel :exec
+UPDATE models
+SET
+    container_image = $2,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateModelParams struct {
+	ID             string
+	ContainerImage string
+}
+
+func (q *Queries) UpdateModel(ctx context.Context, arg UpdateModelParams) error {
+	_, err := q.db.Exec(ctx, updateModel, arg.ID, arg.ContainerImage)
+	return err
 }

@@ -36,9 +36,20 @@ CREATE TABLE tasks (
     gpu_enable BOOLEAN
 );
 
+CREATE TABLE models (
+    id TEXT PRIMARY KEY,
+    container_image TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX idx_tasks_signature_completed
 ON tasks(signature)
 WHERE status = 'completed';
 
 CREATE INDEX idx_tasks_queue_pool ON tasks(scheduled_at ASC)
 WHERE status = 'queued';
+
+CREATE INDEX idx_tasks_upcoming_scheduled
+ON tasks (scheduled_at)
+WHERE status = 'scheduled';

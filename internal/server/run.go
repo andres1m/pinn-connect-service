@@ -60,6 +60,19 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			}
 
 			mapReqToTask(&req, &task)
+			contImg, err := s.modelService.GetImageByID(r.Context(), task.ModelID)
+			if err != nil {
+				slog.Error("getting container image by model id", "error", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+
+			if contImg != "" {
+				task.ContainerImage = contImg
+			} else {
+				http.Error(w, "unknown model id", http.StatusBadRequest)
+				return
+			}
 
 			taskProcessed = true
 
@@ -145,7 +158,6 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
 	task.ModelID = req.ModelID
-	task.ContainerImage = req.ContainerImage
 	task.ContainerCmd = req.ContainerCmd
 	task.ContainerEnvs = req.ContainerEnvs
 	task.CPULim = req.CPULimit

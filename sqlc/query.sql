@@ -94,3 +94,21 @@ WHERE status = 'scheduled'
 AND scheduled_at <= $1
 ORDER BY scheduled_at ASC;
 
+-- name: GetModelByID :one
+SELECT * FROM models WHERE id = $1 LIMIT 1;
+
+-- name: ListModels :many
+SELECT * FROM models ORDER BY id;
+
+-- name: CreateModel :one
+INSERT INTO models (id, container_image) VALUES ($1, $2) RETURNING *;
+
+-- name: DeleteModel :exec
+DELETE FROM models WHERE id = $1;
+
+-- name: UpdateModel :exec
+UPDATE models
+SET
+    container_image = $2,
+    updated_at = NOW()
+WHERE id = $1;

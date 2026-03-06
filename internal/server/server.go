@@ -26,6 +26,14 @@ type TaskService interface {
 	FindCachedTask(ctx context.Context, signature string) (string, error)
 }
 
+type ModelService interface {
+	GetImageByID(ctx context.Context, id string) (string, error)
+	CreateModel(ctx context.Context, modelID string, containerImage string) (*domain.Model, error)
+	DeleteModel(ctx context.Context, modelID string) error
+	ListModels(ctx context.Context) ([]domain.Model, error)
+	UpdateModel(ctx context.Context, modelID string, newContainerImage string) error
+}
+
 type HealthService interface {
 	CheckStatus(ctx context.Context) error
 }
@@ -33,13 +41,15 @@ type HealthService interface {
 type Server struct {
 	router        *chi.Mux
 	taskService   TaskService
+	modelService  ModelService
 	healthService HealthService
 }
 
-func New(taskService TaskService, healthService HealthService) *Server {
+func New(taskService TaskService, modelService ModelService, healthService HealthService) *Server {
 	s := &Server{
 		router:        chi.NewRouter(),
 		taskService:   taskService,
+		modelService:  modelService,
 		healthService: healthService,
 	}
 
@@ -93,4 +103,11 @@ func (s *Server) setRoutes() {
 	s.router.Get("/health", s.HandleHealth)
 	s.router.Post("/run", s.HandleRun)
 	s.router.Get("/status", s.HandleStatus)
+
+	s.router.Route("/models", func(r chi.Router) {
+		r.Get("/", s.HandleModelList)
+		r.Post("/", s.HandleModelCreate)
+		r.Put("/", s.HandleModelUpdate)
+		r.Delete("/{id}", s.HandleModelDelete)
+	})
 }

@@ -57,6 +57,13 @@ func (ns NullTaskStatus) Value() (driver.Value, error) {
 	return string(ns.TaskStatus), nil
 }
 
+type Model struct {
+	ID             string
+	ContainerImage string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
 type Task struct {
 	ID             pgtype.UUID
 	ModelID        string
