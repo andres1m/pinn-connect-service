@@ -7,10 +7,10 @@ import (
 )
 
 type ModelRepository interface {
-	GetModelByID(ctx context.Context, modelID string) (*domain.Model, error)
+	GetModelByID(context.Context, string) (*domain.Model, error)
 	CreateModel(ctx context.Context, modelID string, containerImage string) (*domain.Model, error)
-	DeleteModel(ctx context.Context, modelID string) error
-	ListModels(ctx context.Context) ([]domain.Model, error)
+	DeleteModel(context.Context, string) error
+	ListModels(context.Context) ([]domain.Model, error)
 	UpdateModel(ctx context.Context, modelID string, newContainerImage string) error
 }
 

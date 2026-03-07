@@ -72,8 +72,8 @@ func run() error {
 
 	workspace := workspace.NewLocalWorkspace(cfg)
 
-	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace)
 	modelService := service.NewModelService(modelRepo)
+	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace, modelService)
 	healthService := service.NewHealthService(manager)
 
 	var wg sync.WaitGroup

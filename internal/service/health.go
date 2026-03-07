@@ -3,7 +3,7 @@ package service
 import "context"
 
 type ContainerSystemPinger interface {
-	CheckStatus(ctx context.Context) error
+	CheckStatus(context.Context) error
 }
 
 type HealthService struct {

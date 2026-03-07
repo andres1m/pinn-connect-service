@@ -19,14 +19,9 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := domain.HealthResponse{Status: "ok"}
-
-	resBytes, err := json.Marshal(res)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(domain.HealthResponse{Status: "ok"}); err != nil {
 		slog.Error("failed to encode health response", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	w.Write(resBytes)
 }
