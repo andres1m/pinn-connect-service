@@ -29,6 +29,9 @@ func (s *ModelService) GetImageByID(ctx context.Context, modelID string) (string
 	if err != nil {
 		return "", fmt.Errorf("getting model from repo: %w", err)
 	}
+	if model == nil {
+		return "", nil
+	}
 
 	return model.ContainerImage, nil
 }

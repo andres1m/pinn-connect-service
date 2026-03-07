@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"pinn/internal/db"
 	"pinn/internal/domain"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,6 +22,9 @@ func NewModelRepository(pool *pgxpool.Pool) *ModelRepository {
 func (r *ModelRepository) GetModelByID(ctx context.Context, modelID string) (*domain.Model, error) {
 	dbmodel, err := r.queries.GetModelByID(ctx, modelID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("getting model by id: %w", err)
 	}
 

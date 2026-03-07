@@ -102,7 +102,7 @@ func (s *Server) setRoutes() {
 	s.router.Use(middleware.Logger)
 	s.router.Get("/health", s.HandleHealth)
 	s.router.Post("/run", s.HandleRun)
-	s.router.Get("/status", s.HandleStatus)
+	s.router.Get("/status/{id}", s.HandleStatus)
 
 	s.router.Route("/models", func(r chi.Router) {
 		r.Get("/", s.HandleModelList)

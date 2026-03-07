@@ -62,6 +62,9 @@ func (r *TaskRepository) Create(ctx context.Context, task *domain.Task) error {
 func (r *TaskRepository) GetTaskById(ctx context.Context, uuid uuid.UUID) (*domain.Task, error) {
 	dbtask, err := r.queries.GetTaskByID(ctx, pgtype.UUID{Bytes: uuid, Valid: true})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("getting task by id: %w", err)
 	}
 
