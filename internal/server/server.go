@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"pinn/internal/config"
 	"pinn/internal/domain"
 	"time"
 
@@ -39,14 +40,16 @@ type Server struct {
 	taskService   TaskService
 	modelService  ModelService
 	healthService HealthService
+	config        *config.Config
 }
 
-func New(taskService TaskService, modelService ModelService, healthService HealthService) *Server {
+func New(taskService TaskService, modelService ModelService, healthService HealthService, config *config.Config) *Server {
 	s := &Server{
 		router:        chi.NewRouter(),
 		taskService:   taskService,
 		modelService:  modelService,
 		healthService: healthService,
+		config:        config,
 	}
 
 	s.setRoutes()

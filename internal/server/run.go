@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -37,6 +38,17 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			req := domain.CreateTaskRequest{}
 			if err := json.NewDecoder(part).Decode(&req); err != nil {
 				http.Error(w, "invalid json metadata", http.StatusBadRequest)
+				return
+			}
+
+			if req.CPULimit != 0 && req.CPULimit > s.config.MaxCPU {
+				fmt.Println(s.config.MaxCPU)
+				http.Error(w, "cpu limit exceeded", http.StatusBadRequest)
+				return
+			}
+
+			if req.MemoryLimit != 0 && req.MemoryLimit > s.config.MaxMem {
+				http.Error(w, "memory limit exceeded", http.StatusBadRequest)
 				return
 			}
 

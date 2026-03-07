@@ -243,6 +243,50 @@ func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
 	})
 }
 
+func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup) {
+	for {
+		select {
+		case sem <- struct{}{}:
+
+		default:
+			return
+		}
+
+		task, err := s.repository.GetNextQueuedTask(ctx)
+		if err != nil {
+			slog.Error("failed to get next task", "error", err)
+			<-sem
+			return
+		}
+
+		if task == nil {
+			<-sem
+			return // no queued tasks, waiting for next call
+		}
+
+		resPath, err := s.repository.FindCachedTask(ctx, task.Signature)
+		if err != nil {
+			slog.Error("while finding task in cache", "error", err)
+		} else if resPath != "" {
+			task.ResultPath = resPath
+			s.mark(ctx, task, domain.TaskCompleted)
+
+			<-sem
+			return
+		}
+
+		wg.Go(func() {
+			defer func() { <-sem }()
+
+			taskCtx := context.WithoutCancel(ctx)
+
+			if err := s.processTask(taskCtx, task); err != nil {
+				slog.Error("error while processing task", "id", task.ID, "error", err)
+			}
+		})
+	}
+}
+
 func getFinalHash(task *domain.Task, fileHash []byte) (string, error) {
 	sort.Strings(task.ContainerEnvs)
 	finalHasher := sha256.New()
@@ -377,41 +421,6 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 	fmt.Println(time.Since(start))
 
 	return nil
-}
-
-func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup) {
-	for {
-		select {
-		case sem <- struct{}{}:
-
-		default:
-			return
-		}
-
-		task, err := s.repository.GetNextQueuedTask(ctx)
-		if err != nil {
-			slog.Error("failed to get next task", "error", err)
-			<-sem
-			return
-		}
-
-		if task == nil {
-			<-sem
-			return // no queued tasks, waiting for next call
-		}
-
-		wg.Add(1)
-		go func(t *domain.Task) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			taskCtx := context.WithoutCancel(ctx)
-
-			if err := s.processTask(taskCtx, t); err != nil {
-				slog.Error("error while processing task", "id", t.ID, "error", err)
-			}
-		}(task)
-	}
 }
 
 func createMounts(tmpdir string, taskID uuid.UUID) []domain.Mount {

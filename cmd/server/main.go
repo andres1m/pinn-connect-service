@@ -81,7 +81,7 @@ func run() error {
 	taskService.StartScheduler(ctx)
 
 	// blocking Run() call
-	if err := server.New(taskService, modelService, healthService).Run(ctx, cfg.ServerPort); err != nil {
+	if err := server.New(taskService, modelService, healthService, cfg).Run(ctx, cfg.ServerPort); err != nil {
 		return fmt.Errorf("server stopped with error: %w", err)
 	}
 
