@@ -64,7 +64,7 @@ SET
     error_log = $2,
     finished_at = NOW(),
     updated_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND status != 'stopped'
 RETURNING *;
 
 -- name: MarkTaskInitializing :one
@@ -81,6 +81,15 @@ SET
     status = 'scheduled',
     updated_at = NOW(),
     scheduled_at = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: MarkTaskStopped :one
+UPDATE tasks
+SET 
+    status = 'stopped',
+    finished_at = NOW(),
+    updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
