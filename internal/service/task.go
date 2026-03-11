@@ -171,7 +171,7 @@ func (s *TaskService) StopTask(ctx context.Context, taskID uuid.UUID, timeout ti
 }
 
 func (s *TaskService) StartScheduler(ctx context.Context) {
-	ticker := time.NewTicker(20 * time.Second)
+	ticker := time.NewTicker(s.config.Scheduler.Interval)
 	var mu sync.Mutex
 
 	scheduled := make(map[uuid.UUID]struct{})
@@ -183,7 +183,7 @@ func (s *TaskService) StartScheduler(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				tasks, err := s.repository.GetScheduledTasks(ctx, time.Now().Add(30*time.Second))
+				tasks, err := s.repository.GetScheduledTasks(ctx, time.Now().Add(s.config.Scheduler.TaskExpires))
 				if err != nil {
 					slog.Error("error getting scheduled task")
 					continue
@@ -241,8 +241,8 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 }
 
 func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
-	sem := make(chan struct{}, s.config.MaxWorkers)
-	ticker := time.NewTicker(2 * time.Second)
+	sem := make(chan struct{}, s.config.Worker.MaxWorkers)
+	ticker := time.NewTicker(s.config.Worker.Interval)
 
 	wg.Go(func() {
 		defer ticker.Stop()
@@ -365,7 +365,7 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 	// mark failed if err occurs while run
 	defer func() {
 		if err != nil {
-			markCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			markCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
 			defer cancel()
 			s.repository.Mark(markCtx, task, domain.TaskFailed)
 		}
@@ -383,7 +383,7 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 	}
 
 	defer func() {
-		removeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		removeCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
 		defer cancel()
 
 		if err := s.manager.RemoveContainer(removeCtx, containerID); err != nil {

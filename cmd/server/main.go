@@ -57,11 +57,11 @@ func run() error {
 		return fmt.Errorf("error while initializing minio storage: %w", err)
 	}
 
-	if err := runMigrations(cfg.DBURL); err != nil {
+	if err := runMigrations(cfg.DB.URL); err != nil {
 		return fmt.Errorf("migrations failed: %w", err)
 	}
 
-	pool, err := pgxpool.New(ctx, cfg.DBURL)
+	pool, err := pgxpool.New(ctx, cfg.DB.URL)
 	if err != nil {
 		return fmt.Errorf("error while creating new pgxpool: %w", err)
 	}
@@ -81,7 +81,7 @@ func run() error {
 	taskService.StartScheduler(ctx)
 
 	// blocking Run() call
-	if err := server.New(taskService, modelService, healthService, cfg).Run(ctx, cfg.ServerPort); err != nil {
+	if err := server.New(taskService, modelService, healthService, cfg).Run(ctx, cfg.Server.Port); err != nil {
 		return fmt.Errorf("server stopped with error: %w", err)
 	}
 

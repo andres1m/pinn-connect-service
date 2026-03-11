@@ -1,30 +1,70 @@
 package config
 
-import "github.com/caarlos0/env/v11"
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/caarlos0/env/v11"
+)
+
+type DatabaseConfig struct {
+	URL string `env:"URL,required"` // Читает DB_URL
+}
+
+type MinIOConfig struct {
+	Endpoint  string `env:"ENDPOINT,required"`
+	AccessKey string `env:"ACCESS_KEY,required"`
+	SecretKey string `env:"SECRET_KEY,required"`
+	SSLUse    bool   `env:"USE_SSL" envDefault:"false"`
+	Bucket    string `env:"BUCKET" envDefault:"tasks"`
+}
+
+type ServerConfig struct {
+	Port                   string        `env:"PORT" envDefault:":8080"`
+	DefaultTaskStopTimeout time.Duration `env:"DEFAULT_TASK_STOP_TIMEOUT" envDefault:"5s"`
+}
+
+type SchedulerConfig struct {
+	Interval    time.Duration `env:"INTERVAL" envDefault:"20s"`
+	TaskExpires time.Duration `env:"TASK_EXPIRES" envDefault:"30s"`
+}
+
+type WorkerConfig struct {
+	MaxWorkers                int           `env:"MAX_WORKERS" envDefault:"5"`
+	Interval                  time.Duration `env:"WORKER_INTERVAL" envDefault:"2s"`
+	ProcessTaskCleanupTimeout time.Duration `env:"PROCESS_TASK_CLEANUP_TIMEOUT" envDefault:"10s"`
+}
 
 type Config struct {
-	DBURL string `env:"DB_URL"`
+	DB        DatabaseConfig  `envPrefix:"DB_"`
+	MinIO     MinIOConfig     `envPrefix:"MINIO_"`
+	Server    ServerConfig    `envPrefix:"SERVER_"`
+	Scheduler SchedulerConfig `envPrefix:"SCHEDULER_"`
+	Worker    WorkerConfig    // Префикс не используется, переменные читаются напрямую
 
-	TmpDir     string `env:"TMP_DIR"`
-	MockDir    string `env:"MOCK_DIR" envDefault:"./mock"`
-	MaxWorkers int    `env:"MAX_WORKERS" envDefault:"5"`
-
-	MinIOEndpoint  string `env:"MINIO_ENDPOINT"`
-	MinIOAccessKey string `env:"MINIO_ACCESS_KEY"`
-	MinIOSecretKey string `env:"MINIO_SECRET_KEY"`
-	MinIOSSLUse    bool   `env:"MINIO_USE_SSL"`
-	MinIOBucket    string `env:"MINIO_BUCKET"`
-
-	ServerPort string `env:"SERVER_PORT" envDefault:":8080"`
+	TmpDir  string `env:"TMP_DIR" envDefault:"./tmp"`
+	MockDir string `env:"MOCK_DIR" envDefault:"./mock"`
 
 	MaxMem int `env:"MAX_MEM" envDefault:"512"`
 	MaxCPU int `env:"MAX_CPU" envDefault:"50"`
+
+	WorkspaceDirsPermStr string      `env:"WORKSPACE_DIRS_PERM" envDefault:"0755"`
+	WorkspaceDirsPerm    os.FileMode `env:"-"`
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing env config: %w", err)
 	}
+
+	perm, err := strconv.ParseUint(cfg.WorkspaceDirsPermStr, 8, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid WORKSPACE_DIRS_PERM format, expected octal (e.g., 0755): %w", err)
+	}
+	cfg.WorkspaceDirsPerm = os.FileMode(perm)
+
 	return cfg, nil
 }

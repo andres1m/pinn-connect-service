@@ -24,13 +24,12 @@ func (s *Server) HandleStopTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var timeout time.Duration
+
 	timeoutStr := r.URL.Query().Get("timeout")
 	if timeoutStr == "" {
-		timeoutStr = "5"
-	}
-
-	var timeout time.Duration
-	if sec, err := strconv.Atoi(timeoutStr); err == nil {
+		timeout = s.config.Server.DefaultTaskStopTimeout
+	} else if sec, err := strconv.Atoi(timeoutStr); err == nil {
 		timeout = time.Duration(sec) * time.Second
 	} else {
 		timeout, err = time.ParseDuration(timeoutStr)

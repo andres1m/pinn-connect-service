@@ -20,21 +20,21 @@ type MinIOStorage struct {
 }
 
 func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage, error) {
-	client, err := minio.New(config.MinIOEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(config.MinIOAccessKey, config.MinIOSecretKey, ""),
-		Secure: config.MinIOSSLUse,
+	client, err := minio.New(config.MinIO.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(config.MinIO.AccessKey, config.MinIO.SecretKey, ""),
+		Secure: config.MinIO.SSLUse,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating minio client: %w", err)
 	}
 
-	exists, err := client.BucketExists(ctx, config.MinIOBucket)
+	exists, err := client.BucketExists(ctx, config.MinIO.Bucket)
 	if err != nil {
 		return nil, fmt.Errorf("checking bucket exists: %w", err)
 	}
 
 	if !exists {
-		err := client.MakeBucket(ctx, config.MinIOBucket, minio.MakeBucketOptions{})
+		err := client.MakeBucket(ctx, config.MinIO.Bucket, minio.MakeBucketOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("creating bucket: %w", err)
 		}
@@ -42,7 +42,7 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 
 	return &MinIOStorage{
 		client: client,
-		bucket: config.MinIOBucket,
+		bucket: config.MinIO.Bucket,
 	}, nil
 }
 

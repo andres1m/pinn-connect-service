@@ -21,11 +21,11 @@ func NewLocalWorkspace(config *config.Config) *LocalWorkspace {
 func (w *LocalWorkspace) Prepare(taskID uuid.UUID) error {
 	mainPath := filepath.Join(w.config.TmpDir, taskID.String())
 
-	if err := createDir(mainPath, "input"); err != nil {
+	if err := createDir(mainPath, "input", w.config.WorkspaceDirsPerm); err != nil {
 		return fmt.Errorf("creating input dir: %w", err)
 	}
 
-	if err := createDir(mainPath, "result"); err != nil {
+	if err := createDir(mainPath, "result", w.config.WorkspaceDirsPerm); err != nil {
 		return fmt.Errorf("creating result dir: %w", err)
 	}
 
@@ -67,6 +67,6 @@ func (w *LocalWorkspace) InputDir(taskID uuid.UUID) string {
 	return filepath.Join(w.config.TmpDir, taskID.String(), "input")
 }
 
-func createDir(mainPath string, dir string) error {
-	return os.MkdirAll(filepath.Join(mainPath, dir), 0755)
+func createDir(mainPath string, dir string, perm os.FileMode) error {
+	return os.MkdirAll(filepath.Join(mainPath, dir), perm) //TODO config
 }
