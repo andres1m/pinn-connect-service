@@ -55,7 +55,6 @@ func (m *Manager) StartContainer(ctx context.Context, cfg *domain.ContainerConfi
 	hostConfig := &container.HostConfig{
 		Mounts: mapMounts(cfg),
 		Resources: container.Resources{
-			//TODO add cpu count (multithreading)
 			Memory:   int64(cfg.MemoryLimit) * 1024 * 1024,
 			NanoCPUs: int64(float64(cfg.CPULimit) * 1e7),
 		},

@@ -60,7 +60,7 @@ func (c *Config) Validate() error {
 	if c.Worker.MaxWorkers <= 0 {
 		return fmt.Errorf("MAX_WORKERS must be greater than 0, got: %d", c.Worker.MaxWorkers)
 	}
-	if c.MaxCPUByTask <= 0 {
+	if c.MaxMemByTask <= 0 {
 		return fmt.Errorf("MAX_MEM_BY_TASK must be greater than 0, got: %d", c.MaxMemByTask)
 	}
 	if c.MaxCPUByTask <= 0 {

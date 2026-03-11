@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -45,15 +44,20 @@ func (s *Server) HandleTaskRun(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if req.CPULimit != 0 && req.CPULimit > s.config.MaxCPUByTask {
-				fmt.Println(s.config.MaxCPUByTask)
-				http.Error(w, "cpu limit exceeded", http.StatusBadRequest)
+			if req.CPULimit < 0 || req.CPULimit > s.config.MaxCPUByTask {
+				http.Error(w, "invalid cpu limit", http.StatusBadRequest)
 				return
 			}
+			if req.CPULimit == 0 {
+				req.CPULimit = s.config.MaxCPUByTask
+			}
 
-			if req.MemoryLimit != 0 && req.MemoryLimit > s.config.MaxMemByTask {
-				http.Error(w, "memory limit exceeded", http.StatusBadRequest)
+			if req.MemoryLimit < 0 || req.MemoryLimit > s.config.MaxMemByTask {
+				http.Error(w, "invalid memory limit", http.StatusBadRequest)
 				return
+			}
+			if req.MemoryLimit == 0 {
+				req.MemoryLimit = s.config.MaxMemByTask
 			}
 
 			mapReqToTask(&req, &task)
