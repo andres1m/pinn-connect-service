@@ -41,13 +41,13 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if req.CPULimit != 0 && req.CPULimit > s.config.MaxCPU {
-				fmt.Println(s.config.MaxCPU)
+			if req.CPULimit != 0 && req.CPULimit > s.config.MaxCPUByTask {
+				fmt.Println(s.config.MaxCPUByTask)
 				http.Error(w, "cpu limit exceeded", http.StatusBadRequest)
 				return
 			}
 
-			if req.MemoryLimit != 0 && req.MemoryLimit > s.config.MaxMem {
+			if req.MemoryLimit != 0 && req.MemoryLimit > s.config.MaxMemByTask {
 				http.Error(w, "memory limit exceeded", http.StatusBadRequest)
 				return
 			}

@@ -47,11 +47,35 @@ type Config struct {
 	TmpDir  string `env:"TMP_DIR" envDefault:"./tmp"`
 	MockDir string `env:"MOCK_DIR" envDefault:"./mock"`
 
-	MaxMem int `env:"MAX_MEM" envDefault:"512"`
-	MaxCPU int `env:"MAX_CPU" envDefault:"50"`
+	MaxMemByTask int `env:"MAX_MEM_BY_TASK" envDefault:"512"`
+	MaxCPUByTask int `env:"MAX_CPU_BY_TASK" envDefault:"50"`
 
 	WorkspaceDirsPermStr string      `env:"WORKSPACE_DIRS_PERM" envDefault:"0755"`
 	WorkspaceDirsPerm    os.FileMode `env:"-"`
+}
+
+func (c *Config) Validate() error {
+	if c.Worker.MaxWorkers <= 0 {
+		return fmt.Errorf("MAX_WORKERS must be greater than 0, got: %d", c.Worker.MaxWorkers)
+	}
+	if c.MaxCPUByTask <= 0 {
+		return fmt.Errorf("MAX_MEM_BY_TASK must be greater than 0, got: %d", c.MaxMemByTask)
+	}
+	if c.MaxCPUByTask <= 0 {
+		return fmt.Errorf("MAX_CPU_BY_TASK must be greater than 0, got: %d", c.MaxCPUByTask)
+	}
+	if c.Worker.Interval <= 0 {
+		return fmt.Errorf("WORKER_INTERVAL must be positive")
+	}
+	if c.Scheduler.Interval <= 0 {
+		return fmt.Errorf("SCHEDULER_INTERVAL must be positive")
+	}
+
+	if c.Server.Port == "" || c.Server.Port[0] != ':' {
+		return fmt.Errorf("SERVER_PORT must start with colon (e.g. ':8080')")
+	}
+
+	return nil
 }
 
 func Load() (*Config, error) {
