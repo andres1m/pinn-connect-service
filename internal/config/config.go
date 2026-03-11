@@ -10,7 +10,7 @@ import (
 )
 
 type DatabaseConfig struct {
-	URL string `env:"URL,required"` // Читает DB_URL
+	URL string `env:"URL,required"`
 }
 
 type MinIOConfig struct {
@@ -42,13 +42,15 @@ type Config struct {
 	MinIO     MinIOConfig     `envPrefix:"MINIO_"`
 	Server    ServerConfig    `envPrefix:"SERVER_"`
 	Scheduler SchedulerConfig `envPrefix:"SCHEDULER_"`
-	Worker    WorkerConfig    // Префикс не используется, переменные читаются напрямую
+	Worker    WorkerConfig
 
 	TmpDir  string `env:"TMP_DIR" envDefault:"./tmp"`
 	MockDir string `env:"MOCK_DIR" envDefault:"./mock"`
 
 	MaxMemByTask int `env:"MAX_MEM_BY_TASK" envDefault:"512"`
 	MaxCPUByTask int `env:"MAX_CPU_BY_TASK" envDefault:"50"`
+
+	SysstatsCPUInterval time.Duration `env:"SYSSTATS_CPU_INTERVAL" envDefault:"1s"`
 
 	WorkspaceDirsPermStr string      `env:"WORKSPACE_DIRS_PERM" envDefault:"0755"`
 	WorkspaceDirsPerm    os.FileMode `env:"-"`

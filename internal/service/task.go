@@ -170,13 +170,13 @@ func (s *TaskService) StopTask(ctx context.Context, taskID uuid.UUID, timeout ti
 	return nil
 }
 
-func (s *TaskService) StartScheduler(ctx context.Context) {
+func (s *TaskService) StartScheduler(ctx context.Context, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(s.config.Scheduler.Interval)
 	var mu sync.Mutex
 
 	scheduled := make(map[uuid.UUID]struct{})
 
-	go func() {
+	wg.Go(func() {
 		defer ticker.Stop()
 		for {
 			select {
@@ -210,7 +210,7 @@ func (s *TaskService) StartScheduler(ctx context.Context) {
 				}
 			}
 		}
-	}()
+	})
 }
 
 func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error) {

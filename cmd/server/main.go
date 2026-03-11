@@ -12,6 +12,7 @@ import (
 	"pinn/internal/server"
 	"pinn/internal/service"
 	"pinn/internal/storage"
+	"pinn/internal/sysstats"
 	"pinn/internal/workspace"
 	"sync"
 	"syscall"
@@ -78,7 +79,9 @@ func run() error {
 
 	var wg sync.WaitGroup
 	taskService.StartWorker(ctx, &wg)
-	taskService.StartScheduler(ctx)
+	taskService.StartScheduler(ctx, &wg)
+
+	sysstats.StartCPULoadFetcher(ctx, cfg.SysstatsCPUInterval, &wg)
 
 	// blocking Run() call
 	if err := server.New(taskService, modelService, healthService, cfg).Run(ctx, cfg.Server.Port); err != nil {
@@ -96,11 +99,21 @@ func runMigrations(dbURL string) error {
 		dbURL,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create migrate instance: %w", err)
+		return fmt.Errorf("creating migrate instance: %w", err)
 	}
 
+	defer func() {
+		sourceErr, dbErr := m.Close()
+		if sourceErr != nil {
+			slog.Error("failed to close migrate source", "error", sourceErr)
+		}
+		if dbErr != nil {
+			slog.Error("failed to close migrate db connection", "error", dbErr)
+		}
+	}()
+
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("failed to run migrations: %w", err)
+		return fmt.Errorf("running migrations: %w", err)
 	}
 
 	slog.Info("Migrations applied successfully")

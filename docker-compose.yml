@@ -16,10 +16,12 @@ services:
       - MOCK_DIR=/home/andres1m/go-projects/kursach/mock
       - MAX_WORKERS=5
       - SERVER_PORT=:8080
+      - HOST_PROC=/host_proc
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock 
       - ./tmp:/home/andres1m/go-projects/kursach/tmp
       - ./mock:/home/andres1m/go-projects/kursach/mock
+      - /proc:/host_proc:ro
     depends_on:
       db:
         condition: service_started

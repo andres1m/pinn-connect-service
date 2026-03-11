@@ -102,11 +102,12 @@ func (s *Server) setRoutes() {
 	s.router.Use(middleware.Logger)
 
 	s.router.Get("/health", s.HandleHealth)
+	s.router.Get("/stats", s.HandleStats)
 
 	s.router.Route("/task", func(r chi.Router) {
-		r.Post("/run", s.HandleRun)
-		r.Get("/{id}/status", s.HandleStatus)
-		r.Post("/{id}/stop", s.HandleStopTask)
+		r.Post("/run", s.HandleTaskRun)
+		r.Get("/{id}/status", s.HandleTaskStatus)
+		r.Post("/{id}/stop", s.HandleTaskStop)
 	})
 
 	s.router.Route("/model", func(r chi.Router) {

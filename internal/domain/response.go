@@ -30,3 +30,8 @@ type TaskStatusResponse struct {
 	ResultPath  string     `json:"result_path,omitempty"`
 	ErrLog      string     `json:"err_log,omitempty"`
 }
+
+type StatsResponse struct {
+	AvailableMemoryBytes uint64  `json:"available_memory_bytes"`
+	CPUUtilization       float64 `json:"cpu_utilization"`
+}
