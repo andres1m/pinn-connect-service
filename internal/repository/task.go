@@ -141,9 +141,14 @@ func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status dom
 			return fmt.Errorf("marking task completed: %w", err)
 		}
 		return nil
+	case domain.TaskStopped:
+		if err := r.markTaskStopped(ctx, task); err != nil {
+			return fmt.Errorf("marking task stopped: %w", err)
+		}
+		return nil
+	default:
+		return errors.New("unsopported task status")
 	}
-
-	return errors.New("unsupported task status")
 }
 
 func (r *TaskRepository) markTaskRunning(ctx context.Context, task *domain.Task) error {
@@ -156,6 +161,19 @@ func (r *TaskRepository) markTaskRunning(ctx context.Context, task *domain.Task)
 	}
 
 	task.UpdatedAt = dbtask.UpdatedAt.Time
+	task.Status = domain.TaskStatus(dbtask.Status)
+
+	return nil
+}
+
+func (r *TaskRepository) markTaskStopped(ctx context.Context, task *domain.Task) error {
+	dbtask, err := r.queries.MarkTaskStopped(ctx, pgtype.UUID{Bytes: task.ID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("db query for marking task running: %w", err)
+	}
+
+	task.UpdatedAt = dbtask.UpdatedAt.Time
+	task.FinishedAt = &dbtask.FinishedAt.Time
 	task.Status = domain.TaskStatus(dbtask.Status)
 
 	return nil

@@ -15,6 +15,7 @@ const (
 	TaskCompleted    TaskStatus = "completed"
 	TaskFailed       TaskStatus = "failed"
 	TaskQueued       TaskStatus = "queued"
+	TaskStopped      TaskStatus = "stopped"
 )
 
 type Task struct {

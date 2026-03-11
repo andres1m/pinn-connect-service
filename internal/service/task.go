@@ -25,6 +25,7 @@ type ContainerManager interface {
 	StartContainer(context.Context, *domain.ContainerConfig) (string, error)
 	GetContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
 	RemoveContainer(context.Context, string) error
+	StopContainer(ctx context.Context, id string, timeout time.Duration) error
 	WaitContainer(context.Context, string) (int64, error)
 	InspectContainer(context.Context, string) (*domain.ContainerStateResponse, error)
 }
@@ -146,6 +147,27 @@ func (s *TaskService) CreateTask(ctx context.Context, task *domain.Task, fileHas
 	}
 
 	return s.initTask(ctx, task)
+}
+
+func (s *TaskService) StopTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) error {
+	task, err := s.repository.GetTaskById(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("getting task by id: %w", err)
+	}
+
+	if task.ContainerID == "" {
+		return fmt.Errorf("task container id is empty")
+	}
+
+	if err := s.manager.StopContainer(ctx, task.ContainerID, timeout); err != nil {
+		return fmt.Errorf("stopping container: %w", err)
+	}
+
+	if err := s.repository.Mark(ctx, task, domain.TaskStopped); err != nil {
+		return fmt.Errorf("marking task stopped: %w", err)
+	}
+
+	return nil
 }
 
 func (s *TaskService) StartScheduler(ctx context.Context) {

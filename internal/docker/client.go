@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"pinn/internal/domain"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -128,6 +129,19 @@ func (m *Manager) GetContainerLogs(ctx context.Context, containerID string, foll
 	}
 
 	return result, nil
+}
+
+func (m *Manager) StopContainer(ctx context.Context, containerID string, timeout time.Duration) error {
+	timeoutSeconds := int(timeout / time.Second)
+	err := m.Client.ContainerStop(ctx, containerID, container.StopOptions{
+		Timeout: &timeoutSeconds,
+	})
+
+	if err != nil {
+		return fmt.Errorf("calling ContainerStop in docker client: %w", err)
+	}
+
+	return nil
 }
 
 // RemoveContainer removes container with given id.
