@@ -120,10 +120,19 @@ func (s *TaskService) CreateTask(ctx context.Context, task *domain.Task, fileHas
 		return fmt.Errorf("hashing task meta: %w", err)
 	}
 
+	slog.Info("DEBUG: Task Signature",
+		"task_id", task.ID,
+		"signature", signature,
+		"file_hash", hex.EncodeToString(fileHash),
+		"envs", task.ContainerEnvs,
+		"cmd", task.ContainerCmd,
+	)
+
 	task.Signature = signature
 
 	var resultPath string
 	resultPath, err = s.findCachedTask(ctx, task.Signature)
+
 	if err != nil {
 		slog.Error("finding cached task", "error", err)
 	} else if resultPath != "" {
@@ -159,12 +168,12 @@ func (s *TaskService) StopTask(ctx context.Context, taskID uuid.UUID, timeout ti
 		return fmt.Errorf("task container id is empty")
 	}
 
-	if err := s.manager.StopContainer(ctx, task.ContainerID, timeout); err != nil {
-		return fmt.Errorf("stopping container: %w", err)
-	}
-
 	if err := s.repository.Mark(ctx, task, domain.TaskStopped); err != nil {
 		return fmt.Errorf("marking task stopped: %w", err)
+	}
+
+	if err := s.manager.StopContainer(ctx, task.ContainerID, timeout); err != nil {
+		return fmt.Errorf("stopping container: %w", err)
 	}
 
 	return nil
@@ -425,8 +434,17 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 		return fmt.Errorf("container exited with not null value: %s", errorLog)
 	}
 
-	// upload result to storage
+	// if task was stopped -> stop worker
+	bdtask, err := s.repository.GetTaskById(ctx, task.ID)
+	if err != nil {
+		return fmt.Errorf("getting task from repository: %w", err)
+	}
 
+	if bdtask.Status == domain.TaskStopped {
+		return nil
+	}
+
+	// upload result to storage
 	resPath, err := s.uploadToStorage(ctx, task.ID)
 	if err != nil {
 		return fmt.Errorf("upload to storage: %w", err)

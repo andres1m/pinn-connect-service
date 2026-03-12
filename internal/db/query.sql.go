@@ -34,9 +34,9 @@ func (q *Queries) CreateModel(ctx context.Context, arg CreateModelParams) (Model
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable
+    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable, result_path
 ) VALUES (
-    $1, $2, $3, $4, $13::task_status, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, $14::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13
 )
 RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
 `
@@ -54,6 +54,7 @@ type CreateTaskParams struct {
 	MemLim         pgtype.Int4
 	CpuLim         pgtype.Int4
 	GpuEnable      pgtype.Bool
+	ResultPath     pgtype.Text
 	Status         TaskStatus
 }
 
@@ -71,6 +72,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.MemLim,
 		arg.CpuLim,
 		arg.GpuEnable,
+		arg.ResultPath,
 		arg.Status,
 	)
 	var i Task
@@ -109,7 +111,11 @@ func (q *Queries) DeleteModel(ctx context.Context, id string) error {
 
 const findCachedTask = `-- name: FindCachedTask :one
 SELECT result_path FROM tasks
-WHERE signature = $1 AND status = 'completed'
+WHERE signature = $1
+    AND status = 'completed'::task_status
+    AND result_path IS NOT NULL
+    AND result_path != ''
+ORDER BY created_at DESC
 LIMIT 1
 `
 

@@ -1,8 +1,8 @@
 -- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable
+    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable, result_path
 ) VALUES (
-    $1, $2, $3, $4, sqlc.arg('status')::task_status, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, sqlc.arg('status')::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13
 )
 RETURNING *;
 
@@ -12,7 +12,11 @@ WHERE id = $1 LIMIT 1;
 
 -- name: FindCachedTask :one
 SELECT result_path FROM tasks
-WHERE signature = $1 AND status = 'completed'
+WHERE signature = $1
+    AND status = 'completed'::task_status
+    AND result_path IS NOT NULL
+    AND result_path != ''
+ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: GetNextQueuedTask :one

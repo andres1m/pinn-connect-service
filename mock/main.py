@@ -2,8 +2,15 @@ import os
 import json
 import sys
 import time
+import signal
+
+def handle_sigterm(*args):
+    print("Received SIGTERM, shutting down...")
+    sys.exit(0)
 
 def main():
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
     data_dir = os.environ.get('DATA_DIR', '.')
     input_dir = os.environ.get('INPUT_DIR', '.')
     output_dir = os.environ.get('RESULT_DIR', '.')
@@ -31,7 +38,7 @@ def main():
         weight = model_data.get('weight', 1.0)
         bias = model_data.get('bias', 0.0)
 
-        time.sleep(10)
+        time.sleep(30)
         
         result_value = x * weight + bias
 

@@ -47,6 +47,7 @@ func (r *TaskRepository) Create(ctx context.Context, task *domain.Task) error {
 		MemLim:         pgtype.Int4{Int32: int32(task.MemLim), Valid: true},
 		CpuLim:         pgtype.Int4{Int32: int32(task.CPULim), Valid: true},
 		GpuEnable:      pgtype.Bool{Bool: task.GPUEnabled, Valid: true},
+		ResultPath:     pgtype.Text{String: task.ResultPath, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("creating task: %w", err)
