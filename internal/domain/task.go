@@ -35,6 +35,7 @@ type Task struct {
 	FinishedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	TimeoutSec     int
 	GPUEnabled     bool
 	CPULim         int
 	MemLim         int

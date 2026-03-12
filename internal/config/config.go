@@ -52,6 +52,8 @@ type Config struct {
 
 	SysstatsCPUInterval time.Duration `env:"SYSSTATS_CPU_INTERVAL" envDefault:"1s"`
 
+	DefaultTaskTimeoutSec int `env:"DEFAULT_TASK_TIMEOUT_SEC" envDefault:"3600"`
+
 	WorkspaceDirsPermStr string      `env:"WORKSPACE_DIRS_PERM" envDefault:"0755"`
 	WorkspaceDirsPerm    os.FileMode `env:"-"`
 }

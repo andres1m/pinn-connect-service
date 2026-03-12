@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -309,7 +310,8 @@ func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *s
 		wg.Go(func() {
 			defer func() { <-sem }()
 
-			taskCtx := context.WithoutCancel(ctx)
+			taskCtx, cancel := context.WithTimeout(ctx, time.Duration(task.TimeoutSec)*time.Second)
+			defer cancel()
 
 			if err := s.processTask(taskCtx, task); err != nil {
 				slog.Error("error while processing task", "id", task.ID, "error", err)
@@ -380,6 +382,11 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 		}
 	}()
 
+	bdtask, err := s.repository.GetTaskById(ctx, task.ID)
+	if err != nil || bdtask.Status == domain.TaskStopped {
+		return fmt.Errorf("checking is task stopped: %w", err)
+	}
+
 	// start container
 	containerID, err := s.manager.StartContainer(ctx, &domain.ContainerConfig{
 		Image:  task.ContainerImage,
@@ -411,6 +418,23 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 	// wait for container end
 	exitCode, err := s.manager.WaitContainer(ctx, task.ContainerID)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			origErr := err
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := s.manager.StopContainer(stopCtx, task.ContainerID, 2*time.Second); err != nil {
+				slog.Error("failed to stop container during timeout cleanup", "error", err)
+			}
+
+			if err := s.repository.Mark(stopCtx, task, domain.TaskStopped); err != nil {
+				slog.Error("failed to mark container stopped during timeout cleanup", "error", err)
+			}
+
+			err = nil
+			return fmt.Errorf("task timed out: %w", origErr) //TODO maybe return nil instead
+		}
+
 		errorLog, logErr := s.getErrLogs(ctx, task.ContainerID)
 		if logErr != nil {
 			return fmt.Errorf("container failed: %w (also error while getting container error logs: %w)", err, logErr)
@@ -435,7 +459,7 @@ func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err e
 	}
 
 	// if task was stopped -> stop worker
-	bdtask, err := s.repository.GetTaskById(ctx, task.ID)
+	bdtask, err = s.repository.GetTaskById(ctx, task.ID)
 	if err != nil {
 		return fmt.Errorf("getting task from repository: %w", err)
 	}

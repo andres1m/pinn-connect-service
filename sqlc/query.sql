@@ -1,8 +1,10 @@
 -- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable, result_path
+    id, model_id, input_filename, signature, status, scheduled_at,
+     container_image, container_envs, container_cmd, error_log, mem_lim,
+      cpu_lim, gpu_enable, result_path, timeout_sec
 ) VALUES (
-    $1, $2, $3, $4, sqlc.arg('status')::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, sqlc.arg('status')::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 RETURNING *;
 

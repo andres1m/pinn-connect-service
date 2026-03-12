@@ -33,7 +33,9 @@ CREATE TABLE tasks (
 
     mem_lim INTEGER,
     cpu_lim INTEGER,
-    gpu_enable BOOLEAN
+    gpu_enable BOOLEAN,
+
+    timeout_sec INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE models (

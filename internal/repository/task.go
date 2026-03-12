@@ -48,6 +48,7 @@ func (r *TaskRepository) Create(ctx context.Context, task *domain.Task) error {
 		CpuLim:         pgtype.Int4{Int32: int32(task.CPULim), Valid: true},
 		GpuEnable:      pgtype.Bool{Bool: task.GPUEnabled, Valid: true},
 		ResultPath:     pgtype.Text{String: task.ResultPath, Valid: true},
+		TimeoutSec:     int32(task.TimeoutSec),
 	})
 	if err != nil {
 		return fmt.Errorf("creating task: %w", err)
@@ -288,6 +289,7 @@ func dbTaskToDomainTask(task *db.Task) *domain.Task {
 		GPUEnabled:     task.GpuEnable.Bool,
 		CPULim:         int(task.CpuLim.Int32),
 		MemLim:         int(task.MemLim.Int32),
+		TimeoutSec:     int(task.TimeoutSec),
 	}
 
 	if task.ScheduledAt.Valid {

@@ -38,7 +38,7 @@ def main():
         weight = model_data.get('weight', 1.0)
         bias = model_data.get('bias', 0.0)
 
-        time.sleep(30)
+        time.sleep(10)
         
         result_value = x * weight + bias
 

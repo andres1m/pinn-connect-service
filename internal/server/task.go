@@ -60,6 +60,14 @@ func (s *Server) HandleTaskRun(w http.ResponseWriter, r *http.Request) {
 				req.MemoryLimit = s.config.MaxMemByTask
 			}
 
+			if req.TimeoutSec < 0 {
+				http.Error(w, "invalid timeout", http.StatusBadRequest)
+				return
+			}
+			if req.TimeoutSec == 0 {
+				req.TimeoutSec = s.config.DefaultTaskTimeoutSec
+			}
+
 			mapReqToTask(&req, &task)
 			taskProcessed = true
 
@@ -109,6 +117,7 @@ func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
 	task.MemLim = req.MemoryLimit
 	task.GPUEnabled = req.GPUEnabled
 	task.ScheduledAt = req.ScheduledAt
+	task.TimeoutSec = req.TimeoutSec
 }
 
 func (s *Server) HandleTaskStatus(w http.ResponseWriter, r *http.Request) {

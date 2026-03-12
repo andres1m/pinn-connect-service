@@ -34,11 +34,13 @@ func (q *Queries) CreateModel(ctx context.Context, arg CreateModelParams) (Model
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
-    id, model_id, input_filename, signature, status, scheduled_at, container_image, container_envs, container_cmd, error_log, mem_lim, cpu_lim, gpu_enable, result_path
+    id, model_id, input_filename, signature, status, scheduled_at,
+     container_image, container_envs, container_cmd, error_log, mem_lim,
+      cpu_lim, gpu_enable, result_path, timeout_sec
 ) VALUES (
-    $1, $2, $3, $4, $14::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $15::task_status, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 type CreateTaskParams struct {
@@ -55,6 +57,7 @@ type CreateTaskParams struct {
 	CpuLim         pgtype.Int4
 	GpuEnable      pgtype.Bool
 	ResultPath     pgtype.Text
+	TimeoutSec     int32
 	Status         TaskStatus
 }
 
@@ -73,6 +76,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.CpuLim,
 		arg.GpuEnable,
 		arg.ResultPath,
+		arg.TimeoutSec,
 		arg.Status,
 	)
 	var i Task
@@ -96,6 +100,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -154,7 +159,7 @@ WHERE id = (
 LIMIT 1
 FOR UPDATE SKIP LOCKED
 )
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 func (q *Queries) GetNextQueuedTask(ctx context.Context) (Task, error) {
@@ -180,6 +185,7 @@ func (q *Queries) GetNextQueuedTask(ctx context.Context) (Task, error) {
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -215,7 +221,7 @@ func (q *Queries) GetRunningTasksContainers(ctx context.Context) ([]GetRunningTa
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable FROM tasks
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec FROM tasks
 WHERE id = $1 LIMIT 1
 `
 
@@ -242,12 +248,13 @@ func (q *Queries) GetTaskByID(ctx context.Context, id pgtype.UUID) (Task, error)
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
 
 const getUpcomingScheduledTasks = `-- name: GetUpcomingScheduledTasks :many
-SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable FROM tasks
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec FROM tasks
 WHERE status = 'scheduled'
 AND scheduled_at <= $1
 ORDER BY scheduled_at ASC
@@ -282,6 +289,7 @@ func (q *Queries) GetUpcomingScheduledTasks(ctx context.Context, scheduledAt pgt
 			&i.MemLim,
 			&i.CpuLim,
 			&i.GpuEnable,
+			&i.TimeoutSec,
 		); err != nil {
 			return nil, err
 		}
@@ -330,7 +338,7 @@ SET
     finished_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 type MarkTaskCompletedParams struct {
@@ -361,6 +369,7 @@ func (q *Queries) MarkTaskCompleted(ctx context.Context, arg MarkTaskCompletedPa
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -373,7 +382,7 @@ SET
     finished_at = NOW(),
     updated_at = NOW()
 WHERE id = $1 AND status != 'stopped'
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 type MarkTaskFailedParams struct {
@@ -404,6 +413,7 @@ func (q *Queries) MarkTaskFailed(ctx context.Context, arg MarkTaskFailedParams) 
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -414,7 +424,7 @@ SET
     status = 'initializing',
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 func (q *Queries) MarkTaskInitializing(ctx context.Context, id pgtype.UUID) (Task, error) {
@@ -440,6 +450,7 @@ func (q *Queries) MarkTaskInitializing(ctx context.Context, id pgtype.UUID) (Tas
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -450,7 +461,7 @@ SET
     status = 'queued',
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 func (q *Queries) MarkTaskQueued(ctx context.Context, id pgtype.UUID) (Task, error) {
@@ -476,6 +487,7 @@ func (q *Queries) MarkTaskQueued(ctx context.Context, id pgtype.UUID) (Task, err
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -488,7 +500,7 @@ SET
     started_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 type MarkTaskRunningParams struct {
@@ -519,6 +531,7 @@ func (q *Queries) MarkTaskRunning(ctx context.Context, arg MarkTaskRunningParams
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -530,7 +543,7 @@ SET
     updated_at = NOW(),
     scheduled_at = $2
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 type MarkTaskScheduledParams struct {
@@ -561,6 +574,7 @@ func (q *Queries) MarkTaskScheduled(ctx context.Context, arg MarkTaskScheduledPa
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }
@@ -572,7 +586,7 @@ SET
     finished_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable
+RETURNING id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec
 `
 
 func (q *Queries) MarkTaskStopped(ctx context.Context, id pgtype.UUID) (Task, error) {
@@ -598,6 +612,7 @@ func (q *Queries) MarkTaskStopped(ctx context.Context, id pgtype.UUID) (Task, er
 		&i.MemLim,
 		&i.CpuLim,
 		&i.GpuEnable,
+		&i.TimeoutSec,
 	)
 	return i, err
 }

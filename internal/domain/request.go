@@ -10,6 +10,7 @@ type CreateTaskRequest struct {
 	MemoryLimit   int        `json:"memory_limit"`
 	GPUEnabled    bool       `json:"gpu_enabled"`
 	ScheduledAt   *time.Time `json:"scheduled_at"`
+	TimeoutSec    int        `json:"timeout_sec"`
 }
 
 type CreateModelRequest struct {

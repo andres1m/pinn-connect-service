@@ -84,4 +84,5 @@ type Task struct {
 	MemLim         pgtype.Int4
 	CpuLim         pgtype.Int4
 	GpuEnable      pgtype.Bool
+	TimeoutSec     int32
 }
