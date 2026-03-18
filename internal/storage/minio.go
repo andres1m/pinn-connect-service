@@ -6,10 +6,12 @@ import (
 	"io"
 	"mime"
 	"net/url"
+	"os"
 	"path/filepath"
 	"pinn/internal/config"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -46,7 +48,47 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 	}, nil
 }
 
-func (m *MinIOStorage) Upload(ctx context.Context, objectKey string, r io.Reader, size int64) (string, error) {
+func (s *MinIOStorage) UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error) {
+	entries, err := os.ReadDir(resultDir)
+	if err != nil {
+		return "", fmt.Errorf("reading result dir: %w", err)
+	}
+
+	var resultFileName string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			resultFileName = entry.Name()
+			break
+		}
+	}
+
+	if resultFileName == "" {
+		return "", fmt.Errorf("no result file found in directory")
+	}
+
+	resultFilePath := filepath.Join(resultDir, resultFileName)
+
+	file, err := os.Open(resultFilePath)
+	if err != nil {
+		return "", fmt.Errorf("opening result file: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("getting file stat: %w", err)
+	}
+
+	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
+	_, err = s.upload(ctx, objectKey, file, stat.Size())
+	if err != nil {
+		return "", fmt.Errorf("saving to S3 storage: %w", err)
+	}
+
+	return objectKey, nil
+}
+
+func (m *MinIOStorage) upload(ctx context.Context, objectKey string, r io.Reader, size int64) (string, error) {
 	contentType := mime.TypeByExtension(filepath.Ext(objectKey))
 	if contentType == "" {
 		contentType = "application/octet-stream"

@@ -254,18 +254,29 @@ func (r *TaskRepository) markTaskScheduled(ctx context.Context, task *domain.Tas
 	return nil
 }
 
-func (r *TaskRepository) GetRunningTasksContainers(ctx context.Context) ([]domain.RunningTasksContainer, error) {
+func (r *TaskRepository) GetRunningTasks(ctx context.Context) ([]*domain.Task, error) {
 	resp, err := r.queries.GetRunningTasksContainers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting running tasks containers: %w", err)
 	}
 
-	result := make([]domain.RunningTasksContainer, 0, len(resp))
+	result := make([]*domain.Task, 0, len(resp))
 	for _, row := range resp {
-		result = append(result, domain.RunningTasksContainer{
-			ID:          uuid.UUID(row.ID.Bytes),
-			ContainerID: row.ContainerID.String,
-		})
+		result = append(result, dbTaskToDomainTask(&row))
+	}
+
+	return result, nil
+}
+
+func (r *TaskRepository) GetActiveTasks(ctx context.Context) ([]*domain.Task, error) {
+	resp, err := r.queries.GetActiveTasks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting active tasks containers: %w", err)
+	}
+
+	result := make([]*domain.Task, 0, len(resp))
+	for _, row := range resp {
+		result = append(result, dbTaskToDomainTask(&row))
 	}
 
 	return result, nil

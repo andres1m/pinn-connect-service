@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -50,10 +52,14 @@ func (m *Manager) StartContainer(ctx context.Context, cfg *domain.ContainerConfi
 		Image: cfg.Image,
 		Env:   cfg.Envs,
 		Cmd:   cfg.Cmd,
+		Labels: map[string]string{
+			"pinn.managed": "true",
+			"pinn.task_id": cfg.TaskID.String(),
+		},
 	}
 
 	hostConfig := &container.HostConfig{
-		Mounts: mapMounts(cfg),
+		Mounts: domainToDockerMounts(cfg),
 		Resources: container.Resources{
 			Memory:   int64(cfg.MemoryLimit) * 1024 * 1024,
 			NanoCPUs: int64(float64(cfg.CPULimit) * 1e7),
@@ -112,6 +118,36 @@ func (m *Manager) StartContainer(ctx context.Context, cfg *domain.ContainerConfi
 	}
 
 	return containerID, nil
+}
+
+func (m *Manager) ListManagedContainers(ctx context.Context) ([]*domain.Container, error) {
+	args := filters.NewArgs()
+	args.Add("label", "pinn.managed=true")
+
+	res, err := m.Client.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: args,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting list of containers: %w", err)
+	}
+
+	containers := make([]*domain.Container, 0, len(res))
+
+	for _, cont := range res {
+		containers = append(containers, &domain.Container{
+			ID:      cont.ID,
+			Names:   cont.Names,
+			Image:   cont.Image,
+			ImageID: cont.ImageID,
+			Command: cont.Command,
+			Created: cont.Created,
+			Labels:  cont.Labels,
+			Status:  cont.Status,
+		})
+	}
+
+	return containers, nil
 }
 
 // GetContainerLogs get container logs from docker client and returns io.ReadCloser.
@@ -179,7 +215,7 @@ func (m *Manager) WaitContainer(ctx context.Context, containerID string) (int64,
 }
 
 // InspectContainer returns the container information.
-func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*domain.ContainerStateResponse, error) {
+func (m *Manager) GetContainerState(ctx context.Context, containerID string) (*domain.ContainerState, error) {
 	result, err := m.Client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("inspecting container: %w", err)
@@ -187,7 +223,7 @@ func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*do
 
 	state := result.State
 
-	return &domain.ContainerStateResponse{
+	return &domain.ContainerState{
 		Status:     state.Status,
 		ExitCode:   state.ExitCode,
 		StartedAt:  state.StartedAt,
@@ -201,6 +237,22 @@ func (m *Manager) InspectContainer(ctx context.Context, containerID string) (*do
 func (m *Manager) CheckStatus(ctx context.Context) error {
 	_, err := m.Client.Ping(ctx)
 	return err
+}
+
+func (m *Manager) IsContainerExists(ctx context.Context, containerID string) (bool, error) {
+	if containerID == "" {
+		return false, errors.New("container id requires")
+	}
+
+	_, err := m.Client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspecting container: %w", err)
+	}
+
+	return true, nil
 }
 
 func (m *Manager) pullImage(ctx context.Context, img string) error {
@@ -297,7 +349,7 @@ func isGPUDriverError(err error) bool {
 	return strings.Contains(err.Error(), "could not select device driver")
 }
 
-func mapMounts(cfg *domain.ContainerConfig) []mount.Mount {
+func domainToDockerMounts(cfg *domain.ContainerConfig) []mount.Mount {
 	var dockerMounts []mount.Mount
 	for _, mnt := range cfg.Mounts {
 		dockerMounts = append(dockerMounts, mount.Mount{

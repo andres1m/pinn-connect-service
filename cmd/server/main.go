@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"pinn/internal/config"
 	"pinn/internal/docker"
+	"pinn/internal/gc"
 	"pinn/internal/repository"
 	"pinn/internal/server"
 	"pinn/internal/service"
@@ -16,6 +17,7 @@ import (
 	"pinn/internal/workspace"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -76,6 +78,11 @@ func run() error {
 	modelService := service.NewModelService(modelRepo)
 	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace, modelService)
 	healthService := service.NewHealthService(manager)
+
+	gcCtx, gcCancel := context.WithTimeout(ctx, 20*time.Second)
+	gc := gc.NewGarbageCollector(taskRepo, workspace, manager, storage, taskService)
+	gc.Cleanup(gcCtx)
+	gcCancel()
 
 	var wg sync.WaitGroup
 	taskService.StartWorker(ctx, &wg)

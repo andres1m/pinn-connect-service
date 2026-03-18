@@ -99,8 +99,15 @@ SET
 WHERE id = $1
 RETURNING *;
 
+-- name: GetActiveTasks :many
+SELECT * FROM tasks
+WHERE status = 'running' 
+    OR status = 'scheduled' 
+    OR status = 'queued' 
+    OR status = 'initializing';
+
 -- name: GetRunningTasksContainers :many
-SELECT id, container_id FROM tasks
+SELECT * FROM tasks
 WHERE status = 'running' AND container_id IS NOT NULL;
 
 -- name: GetUpcomingScheduledTasks :many

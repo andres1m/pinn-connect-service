@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"pinn/internal/config"
 	"pinn/internal/domain"
@@ -28,11 +27,11 @@ type ContainerManager interface {
 	RemoveContainer(context.Context, string) error
 	StopContainer(ctx context.Context, id string, timeout time.Duration) error
 	WaitContainer(context.Context, string) (int64, error)
-	InspectContainer(context.Context, string) (*domain.ContainerStateResponse, error)
+	GetContainerState(context.Context, string) (*domain.ContainerState, error)
 }
 
 type ArtifactStorage interface {
-	Upload(ctx context.Context, objectKey string, r io.Reader, size int64) (string, error)
+	UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error)
 	GetDownloadURL(ctx context.Context, objectKey string) (string, error)
 }
 
@@ -41,7 +40,6 @@ type TaskRepository interface {
 	GetTaskById(context.Context, uuid.UUID) (*domain.Task, error)
 	FindCachedTask(context.Context, string) (string, error)
 	Mark(context.Context, *domain.Task, domain.TaskStatus) error
-	GetRunningTasksContainers(context.Context) ([]domain.RunningTasksContainer, error)
 	GetNextQueuedTask(context.Context) (*domain.Task, error)
 	GetScheduledTasks(context.Context, time.Time) ([]domain.Task, error)
 }
@@ -54,12 +52,14 @@ type Workspace interface {
 }
 
 type TaskService struct {
-	manager      ContainerManager
-	config       *config.Config
-	storage      ArtifactStorage
-	repository   TaskRepository
-	workspace    Workspace
-	modelService *ModelService
+	manager          ContainerManager
+	config           *config.Config
+	storage          ArtifactStorage
+	repository       TaskRepository
+	workspace        Workspace
+	modelService     *ModelService
+	recoverTaskQueue []*domain.Task
+	recoverMu        sync.Mutex
 }
 
 func NewTaskService(
@@ -70,12 +70,14 @@ func NewTaskService(
 	workspace Workspace,
 	modelService *ModelService) *TaskService {
 	return &TaskService{
-		manager:      manager,
-		storage:      storage,
-		config:       config,
-		repository:   repository,
-		workspace:    workspace,
-		modelService: modelService,
+		manager:          manager,
+		storage:          storage,
+		config:           config,
+		repository:       repository,
+		workspace:        workspace,
+		modelService:     modelService,
+		recoverTaskQueue: make([]*domain.Task, 0),
+		recoverMu:        sync.Mutex{},
 	}
 }
 
@@ -250,6 +252,12 @@ func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, e
 	return result, nil
 }
 
+func (s *TaskService) RecoverTask(task *domain.Task) {
+	s.recoverMu.Lock()
+	s.recoverTaskQueue = append(s.recoverTaskQueue, task)
+	s.recoverMu.Unlock()
+}
+
 func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
 	sem := make(chan struct{}, s.config.Worker.MaxWorkers)
 	ticker := time.NewTicker(s.config.Worker.Interval)
@@ -275,12 +283,34 @@ func (s *TaskService) StartWorker(ctx context.Context, wg *sync.WaitGroup) {
 	})
 }
 
+func (s *TaskService) getNextRecoverTask() *domain.Task {
+	s.recoverMu.Lock()
+	defer s.recoverMu.Unlock()
+
+	if len(s.recoverTaskQueue) == 0 {
+		return nil
+	}
+
+	task := s.recoverTaskQueue[0]
+	if len(s.recoverTaskQueue) > 0 {
+		s.recoverTaskQueue = s.recoverTaskQueue[1:]
+	}
+
+	return task
+}
+
 func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup) {
 	for {
 		select {
 		case sem <- struct{}{}:
 
 		default:
+			return
+		}
+
+		recTask := s.getNextRecoverTask()
+		if recTask != nil {
+			wg.Go(func() { s.waitAndSaveTask(ctx, recTask) })
 			return
 		}
 
@@ -318,6 +348,139 @@ func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *s
 			}
 		})
 	}
+}
+
+// worker gouroutine should use it
+func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err error) {
+	start := time.Now()
+	defer func() {
+		if err := s.workspace.Cleanup(task.ID); err != nil {
+			slog.Error("Error while cleanup workspace", "error", err)
+		}
+	}()
+
+	// mark failed if err occurs while run
+	defer func() {
+		if err != nil {
+			markCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
+			defer cancel()
+			s.repository.Mark(markCtx, task, domain.TaskFailed)
+		}
+	}()
+
+	dbtask, err := s.repository.GetTaskById(ctx, task.ID)
+	if err != nil || dbtask.Status == domain.TaskStopped {
+		return fmt.Errorf("checking is task stopped: %w", err)
+	}
+
+	// start container
+	containerID, err := s.manager.StartContainer(ctx, &domain.ContainerConfig{
+		Image:  task.ContainerImage,
+		Mounts: createMounts(s.config.TmpDir, task.ID),
+		Cmd:    task.ContainerCmd,
+		Envs:   task.ContainerEnvs,
+		TaskID: task.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("starting container: %w", err)
+	}
+
+	defer func() {
+		removeCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
+		defer cancel()
+
+		if err := s.manager.RemoveContainer(removeCtx, containerID); err != nil {
+			slog.Error("Error while removing container", "error", err)
+		}
+	}()
+
+	task.ContainerID = containerID
+
+	// mark as running
+	err = s.repository.Mark(ctx, task, domain.TaskRunning)
+	if err != nil {
+		return fmt.Errorf("marking task running: %w", err)
+	}
+
+	// wait for container end
+	err = s.waitAndSaveTask(ctx, task)
+	if err != nil {
+		return fmt.Errorf("waiting and saving task: %w", err)
+	}
+
+	fmt.Println(time.Since(start))
+
+	return nil
+}
+
+func (s *TaskService) waitAndSaveTask(ctx context.Context, task *domain.Task) error {
+	exitCode, err := s.manager.WaitContainer(ctx, task.ContainerID)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			origErr := err
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := s.manager.StopContainer(stopCtx, task.ContainerID, 2*time.Second); err != nil {
+				slog.Error("failed to stop container during timeout cleanup", "error", err)
+			}
+
+			if err := s.repository.Mark(stopCtx, task, domain.TaskStopped); err != nil {
+				slog.Error("failed to mark container stopped during timeout cleanup", "error", err)
+			}
+
+			err = nil
+			return fmt.Errorf("task timed out: %w", origErr) //TODO maybe return nil instead
+		}
+
+		errorLog, logErr := s.getErrLogs(ctx, task.ContainerID)
+		if logErr != nil {
+			return fmt.Errorf("container failed: %w (also error while getting container error logs: %w)", err, logErr)
+		}
+
+		task.ErrorLog = errorLog
+
+		return fmt.Errorf("container failed: %w, stderr logs: %s", err, errorLog)
+	}
+
+	// check container status
+	var errorLog string
+	if exitCode != 0 {
+		errorLog, err = s.getErrLogs(ctx, task.ContainerID)
+		if err != nil {
+			return fmt.Errorf("getting container error logs: %w", err)
+		}
+
+		task.ErrorLog = errorLog
+
+		return fmt.Errorf("container exited with not null value: %s", errorLog)
+	}
+
+	// if task was stopped -> stop worker
+	dbtask, err := s.repository.GetTaskById(ctx, task.ID)
+	if err != nil {
+		return fmt.Errorf("getting task from repository: %w", err)
+	}
+
+	if dbtask.Status == domain.TaskStopped {
+		return nil
+	}
+
+	// upload result to storage
+	resPath, err := s.storage.UploadToStorage(ctx, task.ID, s.workspace.ResultDir(task.ID))
+	if err != nil {
+		return fmt.Errorf("upload to storage: %w", err)
+	}
+
+	task.ResultPath = resPath
+
+	// mark as completed
+	err = s.repository.Mark(ctx, task, domain.TaskCompleted)
+	if err != nil {
+		return fmt.Errorf("marking task completed: %w", err)
+	}
+
+	return nil
 }
 
 func getFinalHash(task *domain.Task, fileHash []byte) (string, error) {
@@ -364,129 +527,6 @@ func (s *TaskService) cleanupWorkspace(taskID uuid.UUID) error {
 	return nil
 }
 
-// worker gouroutine should use it
-func (s *TaskService) processTask(ctx context.Context, task *domain.Task) (err error) {
-	start := time.Now()
-	defer func() {
-		if err := s.workspace.Cleanup(task.ID); err != nil {
-			slog.Error("Error while cleanup workspace", "error", err)
-		}
-	}()
-
-	// mark failed if err occurs while run
-	defer func() {
-		if err != nil {
-			markCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
-			defer cancel()
-			s.repository.Mark(markCtx, task, domain.TaskFailed)
-		}
-	}()
-
-	bdtask, err := s.repository.GetTaskById(ctx, task.ID)
-	if err != nil || bdtask.Status == domain.TaskStopped {
-		return fmt.Errorf("checking is task stopped: %w", err)
-	}
-
-	// start container
-	containerID, err := s.manager.StartContainer(ctx, &domain.ContainerConfig{
-		Image:  task.ContainerImage,
-		Mounts: createMounts(s.config.TmpDir, task.ID),
-		Cmd:    task.ContainerCmd,
-		Envs:   task.ContainerEnvs,
-	})
-	if err != nil {
-		return fmt.Errorf("starting container: %w", err)
-	}
-
-	defer func() {
-		removeCtx, cancel := context.WithTimeout(context.Background(), s.config.Worker.ProcessTaskCleanupTimeout)
-		defer cancel()
-
-		if err := s.manager.RemoveContainer(removeCtx, containerID); err != nil {
-			slog.Error("Error while removing container", "error", err)
-		}
-	}()
-
-	task.ContainerID = containerID
-
-	// mark as running
-	err = s.repository.Mark(ctx, task, domain.TaskRunning)
-	if err != nil {
-		return fmt.Errorf("marking task running: %w", err)
-	}
-
-	// wait for container end
-	exitCode, err := s.manager.WaitContainer(ctx, task.ContainerID)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			origErr := err
-			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			if err := s.manager.StopContainer(stopCtx, task.ContainerID, 2*time.Second); err != nil {
-				slog.Error("failed to stop container during timeout cleanup", "error", err)
-			}
-
-			if err := s.repository.Mark(stopCtx, task, domain.TaskStopped); err != nil {
-				slog.Error("failed to mark container stopped during timeout cleanup", "error", err)
-			}
-
-			err = nil
-			return fmt.Errorf("task timed out: %w", origErr) //TODO maybe return nil instead
-		}
-
-		errorLog, logErr := s.getErrLogs(ctx, task.ContainerID)
-		if logErr != nil {
-			return fmt.Errorf("container failed: %w (also error while getting container error logs: %w)", err, logErr)
-		}
-
-		task.ErrorLog = errorLog
-
-		return fmt.Errorf("container failed: %w, stderr logs: %s", err, errorLog)
-	}
-
-	// check container status
-	var errorLog string
-	if exitCode != 0 {
-		errorLog, err = s.getErrLogs(ctx, task.ContainerID)
-		if err != nil {
-			return fmt.Errorf("getting container error logs: %w", err)
-		}
-
-		task.ErrorLog = errorLog
-
-		return fmt.Errorf("container exited with not null value: %s", errorLog)
-	}
-
-	// if task was stopped -> stop worker
-	bdtask, err = s.repository.GetTaskById(ctx, task.ID)
-	if err != nil {
-		return fmt.Errorf("getting task from repository: %w", err)
-	}
-
-	if bdtask.Status == domain.TaskStopped {
-		return nil
-	}
-
-	// upload result to storage
-	resPath, err := s.uploadToStorage(ctx, task.ID)
-	if err != nil {
-		return fmt.Errorf("upload to storage: %w", err)
-	}
-
-	task.ResultPath = resPath
-
-	// mark as completed
-	err = s.repository.Mark(ctx, task, domain.TaskCompleted)
-	if err != nil {
-		return fmt.Errorf("marking task completed: %w", err)
-	}
-
-	fmt.Println(time.Since(start))
-
-	return nil
-}
-
 func createMounts(tmpdir string, taskID uuid.UUID) []domain.Mount {
 	return []domain.Mount{
 		{
@@ -517,44 +557,4 @@ func (s *TaskService) getErrLogs(ctx context.Context, containerID string) (strin
 	}
 
 	return stderr.String(), nil
-}
-
-func (s *TaskService) uploadToStorage(ctx context.Context, taskID uuid.UUID) (string, error) {
-	entries, err := os.ReadDir(s.workspace.ResultDir(taskID))
-	if err != nil {
-		return "", fmt.Errorf("reading result dir: %w", err)
-	}
-
-	var resultFileName string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			resultFileName = entry.Name()
-			break
-		}
-	}
-
-	if resultFileName == "" {
-		return "", fmt.Errorf("no result file found in directory")
-	}
-
-	resultFilePath := filepath.Join(s.workspace.ResultDir(taskID), resultFileName)
-
-	file, err := os.Open(resultFilePath)
-	if err != nil {
-		return "", fmt.Errorf("opening result file: %w", err)
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return "", fmt.Errorf("getting file stat: %w", err)
-	}
-
-	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
-	_, err = s.storage.Upload(ctx, objectKey, file, stat.Size())
-	if err != nil {
-		return "", fmt.Errorf("saving to S3 storage: %w", err)
-	}
-
-	return objectKey, nil
 }
