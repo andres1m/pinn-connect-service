@@ -10,7 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+	"net/http"
+
 	"github.com/containerd/errdefs"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -21,6 +25,14 @@ import (
 type Manager struct {
 	Client *client.Client
 	hasGPU bool
+}
+
+type buildLine struct {
+	Stream      string `json:"stream"`
+	Error       string `json:"error"`
+	ErrorDetail struct {
+		Message string `json:"message"`
+	} `json:"errorDetail"`
 }
 
 // NewManager create and return new docker manager.
@@ -190,6 +202,19 @@ func (m *Manager) RemoveContainer(ctx context.Context, containerID string) error
 	return nil
 }
 
+// RemoveImage removes image with given name/tag.
+func (m *Manager) RemoveImage(ctx context.Context, img string) error {
+	_, err := m.Client.ImageRemove(ctx, img, image.RemoveOptions{
+		Force:         true,
+		PruneChildren: true,
+	})
+	if err != nil {
+		return fmt.Errorf("removing image: %w", err)
+	}
+
+	return nil
+}
+
 // WaitContainer blocks goroutine and waiting for container finished his job.
 // Returns status code and an error if occurs.
 func (m *Manager) WaitContainer(ctx context.Context, containerID string) (int64, error) {
@@ -253,6 +278,61 @@ func (m *Manager) IsContainerExists(ctx context.Context, containerID string) (bo
 	}
 
 	return true, nil
+}
+
+// BuildImage builds a docker image from a tar archive.
+func (m *Manager) BuildImage(ctx context.Context, archive io.Reader, tag string, logWriter io.Writer) error {
+	slog.Info("starting image build", "tag", tag)
+
+	opts := build.ImageBuildOptions{
+		Context:    archive,
+		Dockerfile: "Dockerfile",
+		Tags:       []string{tag},
+		Remove:     true,
+	}
+
+	res, err := m.Client.ImageBuild(ctx, archive, opts)
+	if err != nil {
+		return fmt.Errorf("calling ImageBuild: %w", err)
+	}
+	defer res.Body.Close()
+
+	if err := m.handleBuildOutput(res.Body, logWriter); err != nil {
+		return fmt.Errorf("build failed: %w", err)
+	}
+
+	slog.Info("image built successfully", "tag", tag)
+	return nil
+}
+
+func (m *Manager) handleBuildOutput(rd io.Reader, logWriter io.Writer) error {
+	decoder := json.NewDecoder(rd)
+	flusher, _ := logWriter.(http.Flusher)
+
+	for {
+		var line buildLine
+		if err := decoder.Decode(&line); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("decoding build output: %w", err)
+		}
+
+		if line.Error != "" {
+			return fmt.Errorf("%s", line.Error)
+		}
+
+		if line.Stream != "" {
+			slog.Debug("docker build", "output", strings.TrimSuffix(line.Stream, "\n"))
+			if logWriter != nil {
+				fmt.Fprint(logWriter, line.Stream)
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (m *Manager) pullImage(ctx context.Context, img string) error {

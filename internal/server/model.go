@@ -1,7 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"pinn/internal/domain"
@@ -9,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func (s *Server) HandleModelCreate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleModelAdd(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateModelRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -48,6 +52,13 @@ func (s *Server) HandleModelDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	if err := s.modelService.DeleteModel(r.Context(), id); err != nil {
+		slog.Error("deleting model", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 }
@@ -56,6 +67,12 @@ func (s *Server) HandleModelUpdate(w http.ResponseWriter, r *http.Request) {
 	var req domain.UpdateModelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.modelService.DeleteImageByModelId(r.Context(), req.ID); err != nil {
+		slog.Error("deleting old image", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -86,5 +103,98 @@ func (s *Server) HandleModelList(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(models); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (s *Server) HandleModelBuild(w http.ResponseWriter, r *http.Request) {
+	mr, err := r.MultipartReader()
+	if err != nil {
+		http.Error(w, "invalid multipart request", http.StatusBadRequest)
+		return
+	}
+
+	var modelID string
+
+	for {
+		part, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			slog.Error("error reading multipart", "error", err)
+			http.Error(w, "error reading multipart", http.StatusBadRequest)
+			return
+		}
+
+		switch part.FormName() {
+		case "model":
+			var req domain.CreateModelRequest
+			if err := json.NewDecoder(part).Decode(&req); err != nil {
+				http.Error(w, "invalid json metadata", http.StatusBadRequest)
+				return
+			}
+
+			if req.ID == "" {
+				http.Error(w, "model id is required", http.StatusBadRequest)
+				return
+			}
+
+			exists, err := s.modelService.Exists(r.Context(), req.ID)
+			if err != nil {
+				slog.Error("checking model existence", "error", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+
+			if exists {
+				http.Error(w, "model already exists", http.StatusConflict)
+				return
+			}
+
+			modelID = req.ID
+
+		case "artifacts":
+			if modelID == "" {
+				http.Error(w, "'model' metadata part must precede 'artifacts' part", http.StatusBadRequest)
+				return
+			}
+
+			buff := make([]byte, 512)
+			n, err := part.Read(buff)
+			if err != nil && err != io.EOF {
+				slog.Error("failed to read artifact header", "error", err)
+				http.Error(w, "failed to read artifacts", http.StatusInternalServerError)
+				return
+			}
+
+			contentType := http.DetectContentType(buff[:n])
+			if contentType != "application/x-gzip" && contentType != "application/gzip" {
+				http.Error(w, "invalid file type: expected tar.gz", http.StatusBadRequest)
+				return
+			}
+
+			archiveReader := io.MultiReader(bytes.NewReader(buff[:n]), part)
+
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.WriteHeader(http.StatusOK)
+
+			if err := s.modelService.BuildModel(r.Context(), modelID, archiveReader, w); err != nil {
+				fmt.Fprintf(w, "\nBUILD FAILED: %v\n", err)
+				return
+			}
+
+			fmt.Fprintln(w, "\nBUILD SUCCESSFUL")
+			return
+
+		default:
+			continue
+		}
+	}
+
+	if modelID == "" {
+		http.Error(w, "missing model metadata", http.StatusBadRequest)
+	} else {
+		http.Error(w, "missing artifacts", http.StatusBadRequest)
 	}
 }

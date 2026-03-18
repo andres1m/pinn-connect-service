@@ -30,6 +30,9 @@ type ModelService interface {
 	DeleteModel(ctx context.Context, modelID string) error
 	ListModels(ctx context.Context) ([]domain.Model, error)
 	UpdateModel(ctx context.Context, modelID string, newContainerImage string) error
+	Exists(context.Context, string) (bool, error)
+	BuildModel(ctx context.Context, modelID string, archive io.Reader, logWriter io.Writer) error
+	DeleteImageByModelId(context.Context, string) error
 }
 
 type HealthService interface {
@@ -112,8 +115,9 @@ func (s *Server) setRoutes() {
 
 	s.router.Route("/model", func(r chi.Router) {
 		r.Get("/", s.HandleModelList)
-		r.Post("/", s.HandleModelCreate)
+		r.Post("/", s.HandleModelAdd)
 		r.Put("/", s.HandleModelUpdate)
 		r.Delete("/{id}", s.HandleModelDelete)
+		r.Post("/build", s.HandleModelBuild)
 	})
 }

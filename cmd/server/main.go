@@ -75,7 +75,7 @@ func run() error {
 
 	workspace := workspace.NewLocalWorkspace(cfg)
 
-	modelService := service.NewModelService(modelRepo)
+	modelService := service.NewModelService(modelRepo, manager)
 	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace, modelService)
 	healthService := service.NewHealthService(manager)
 
