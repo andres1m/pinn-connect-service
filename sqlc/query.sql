@@ -134,3 +134,6 @@ SET
     container_image = $2,
     updated_at = NOW()
 WHERE id = $1;
+
+-- name: ExistsModelByID :one
+SELECT EXISTS(SELECT 1 FROM models WHERE id = $1);

@@ -114,6 +114,17 @@ func (q *Queries) DeleteModel(ctx context.Context, id string) error {
 	return err
 }
 
+const existsModelByID = `-- name: ExistsModelByID :one
+SELECT EXISTS(SELECT 1 FROM models WHERE id = $1)
+`
+
+func (q *Queries) ExistsModelByID(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, existsModelByID, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const findCachedTask = `-- name: FindCachedTask :one
 SELECT result_path FROM tasks
 WHERE signature = $1

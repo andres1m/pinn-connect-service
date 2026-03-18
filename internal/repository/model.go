@@ -57,6 +57,15 @@ func (r *ModelRepository) UpdateModel(ctx context.Context, modelID string, newCo
 	return nil
 }
 
+func (r *ModelRepository) Exists(ctx context.Context, id string) (bool, error) {
+	exists, err := r.queries.ExistsModelByID(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("checking model exists: %w", err)
+	}
+
+	return exists, nil
+}
+
 func (r *ModelRepository) CreateModel(ctx context.Context, modelID string, containerImage string) (*domain.Model, error) {
 	model, err := r.queries.CreateModel(ctx, db.CreateModelParams{
 		ID:             modelID,

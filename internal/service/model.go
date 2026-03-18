@@ -12,6 +12,7 @@ type ModelRepository interface {
 	DeleteModel(context.Context, string) error
 	ListModels(context.Context) ([]domain.Model, error)
 	UpdateModel(ctx context.Context, modelID string, newContainerImage string) error
+	Exists(ctx context.Context, id string) (bool, error)
 }
 
 type ModelService struct {
@@ -34,6 +35,15 @@ func (s *ModelService) GetImageByID(ctx context.Context, modelID string) (string
 	}
 
 	return model.ContainerImage, nil
+}
+
+func (s *ModelService) Exists(ctx context.Context, modelID string) (bool, error) {
+	exists, err := s.repository.Exists(ctx, modelID)
+	if err != nil {
+		return false, fmt.Errorf("checking model exists: %w", err)
+	}
+
+	return exists, nil
 }
 
 func (s *ModelService) CreateModel(ctx context.Context, modelID string, containerImage string) (*domain.Model, error) {
