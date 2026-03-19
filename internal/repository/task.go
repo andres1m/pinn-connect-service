@@ -295,6 +295,14 @@ func (r *TaskRepository) GetAllTasks(ctx context.Context) (result []domain.Task,
 	return
 }
 
+func (r *TaskRepository) DeleteTask(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.DeleteTask(ctx, pgtype.UUID{Bytes: id, Valid: true}); err != nil {
+		return fmt.Errorf("deleting task from db: %w", err)
+	}
+
+	return nil
+}
+
 func dbTaskToDomainTask(task *db.Task) *domain.Task {
 	d := &domain.Task{
 		ID:             uuid.UUID(task.ID.Bytes),

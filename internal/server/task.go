@@ -173,6 +173,46 @@ func (s *Server) HandleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) HandleTaskDelete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	task, err := s.taskService.GetTask(r.Context(), uuid)
+	if err != nil {
+		slog.Error("getting task", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if task == nil {
+		http.Error(w, "task with given id doesnt exists", http.StatusBadRequest)
+		return
+	}
+
+	if task.Status == domain.TaskRunning {
+		http.Error(w, "cannot delete running task, need to stop it first", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.taskService.DeleteTask(r.Context(), uuid); err != nil {
+		slog.Error("deleting task", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+}
+
 func mapTaskToResp(task *domain.Task) *domain.TaskStatusResponse {
 	resp := domain.TaskStatusResponse{
 		ID:        task.ID.String(),

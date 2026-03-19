@@ -140,3 +140,6 @@ WHERE id = $1;
 
 -- name: ExistsModelByID :one
 SELECT EXISTS(SELECT 1 FROM models WHERE id = $1);
+
+-- name: DeleteTask :exec
+DELETE FROM tasks WHERE id = $1;

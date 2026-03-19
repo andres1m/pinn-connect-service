@@ -33,6 +33,7 @@ type ContainerManager interface {
 type ArtifactStorage interface {
 	UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error)
 	GetDownloadURL(ctx context.Context, objectKey string) (string, error)
+	DeleteArtifacts(ctx context.Context, taskID uuid.UUID) error
 }
 
 type TaskRepository interface {
@@ -43,6 +44,7 @@ type TaskRepository interface {
 	GetNextQueuedTask(context.Context) (*domain.Task, error)
 	GetScheduledTasks(context.Context, time.Time) ([]domain.Task, error)
 	GetAllTasks(context.Context) ([]domain.Task, error)
+	DeleteTask(context.Context, uuid.UUID) error
 }
 
 type Workspace interface {
@@ -242,6 +244,18 @@ func (s *TaskService) GetAllTasks(ctx context.Context) ([]domain.Task, error) {
 	}
 
 	return result, nil
+}
+
+func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
+	if err := s.storage.DeleteArtifacts(ctx, id); err != nil {
+		return fmt.Errorf("deleting artifacts: %w", err)
+	}
+
+	if err := s.workspace.Cleanup(id); err != nil {
+		return fmt.Errorf("deleting workspace: %w", err)
+	}
+
+	return s.repository.DeleteTask(ctx, id)
 }
 
 func (s *TaskService) GetResultURL(ctx context.Context, id uuid.UUID) (string, error) {

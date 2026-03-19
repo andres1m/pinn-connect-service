@@ -59,6 +59,24 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 	}, nil
 }
 
+func (s *MinIOStorage) DeleteArtifacts(ctx context.Context, taskID uuid.UUID) error {
+	prefix := fmt.Sprintf("tasks/%s/", taskID)
+
+	objectsCh := s.Client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+	errorCh := s.Client.RemoveObjects(ctx, s.bucket, objectsCh, minio.RemoveObjectsOptions{})
+
+	for err := range errorCh {
+		if err.Err != nil {
+			return fmt.Errorf("failed to remove object %s: %w", err.ObjectName, err.Err)
+		}
+	}
+
+	return nil
+}
+
 func (s *MinIOStorage) UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error) {
 	entries, err := os.ReadDir(resultDir)
 	if err != nil {

@@ -21,11 +21,12 @@ import (
 
 type TaskService interface {
 	SaveInput(taskID uuid.UUID, filename string, r io.Reader) ([]byte, error)
-	GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error)
+	GetTask(context.Context, uuid.UUID) (*domain.Task, error)
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
 	CreateTask(ctx context.Context, task *domain.Task, fileHash []byte) error
 	StopTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) error
 	GetAllTasks(context.Context) ([]domain.Task, error)
+	DeleteTask(context.Context, uuid.UUID) error
 }
 
 type ModelService interface {
@@ -127,6 +128,7 @@ func (s *Server) setRoutes() {
 			r.Get("/{id}/status", s.HandleTaskStatus)
 			r.Post("/{id}/stop", s.HandleTaskStop)
 			r.Get("/{id}/result", s.HandleTaskResult)
+			r.Delete("/{id}", s.HandleTaskDelete)
 		})
 
 		r.Route("/model", func(r chi.Router) {

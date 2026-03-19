@@ -114,6 +114,15 @@ func (q *Queries) DeleteModel(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteTask = `-- name: DeleteTask :exec
+DELETE FROM tasks WHERE id = $1
+`
+
+func (q *Queries) DeleteTask(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTask, id)
+	return err
+}
+
 const existsModelByID = `-- name: ExistsModelByID :one
 SELECT EXISTS(SELECT 1 FROM models WHERE id = $1)
 `
