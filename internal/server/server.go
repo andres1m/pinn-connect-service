@@ -7,11 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"pinn/internal/config"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/config"
+	"pinn-connect-service/internal/domain"
 	"time"
 
-	_ "pinn/docs"
+	_ "pinn-connect-service/docs"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

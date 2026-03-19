@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"pinn/internal/config"
+	"pinn-connect-service/internal/config"
 	"time"
 
 	"github.com/google/uuid"

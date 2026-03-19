@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"pinn/internal/config"
+	"pinn-connect-service/internal/config"
 
 	"github.com/google/uuid"
 )

@@ -7,7 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/domain"
 	"strconv"
 	"time"
 

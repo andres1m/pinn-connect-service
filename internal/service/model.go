@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/domain"
 	"strings"
 )
 

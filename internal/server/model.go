@@ -8,7 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/domain"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"pinn/internal/db"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/db"
+	"pinn-connect-service/internal/domain"
 	"time"
 
 	"github.com/google/uuid"

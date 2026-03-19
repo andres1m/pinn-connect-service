@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/domain"
 	"strings"
 	"time"
 

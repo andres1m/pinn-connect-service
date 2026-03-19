@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"pinn/internal/domain"
-	"pinn/internal/sysstats"
+	"pinn-connect-service/internal/domain"
+	"pinn-connect-service/internal/sysstats"
 )
 
 // HandleStats godoc

@@ -3,7 +3,7 @@ package gc
 import (
 	"context"
 	"log/slog"
-	"pinn/internal/domain"
+	"pinn-connect-service/internal/domain"
 	"sync"
 
 	"github.com/google/uuid"
