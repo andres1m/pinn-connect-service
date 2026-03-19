@@ -1,6 +1,24 @@
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Project specific
+tmp/
+mock/
+bin/
+pinn-server
+
+# System / IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Go
+go.sum
+
+# Metadata
 ТЗ.md
-.gemini
-TODO.md
-.gitignore
 CONTEXT.md
-tmp
+TODO.md
+.gemini
