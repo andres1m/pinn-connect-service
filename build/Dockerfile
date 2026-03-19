@@ -5,7 +5,13 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Install swag tool to generate docs inside the container
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 COPY . .
+
+# Generate swagger docs (docs/ directory)
+RUN swag init -g cmd/server/main.go
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /pinn-server cmd/server/main.go
 

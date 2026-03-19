@@ -27,6 +27,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// @title           Pinn API
+// @version         1.0
+// @description     Pinn Server API for distributed task execution and model building.
+// @host            localhost:8080
+// @BasePath        /
 func main() {
 	slog.SetDefault(slog.Default())
 

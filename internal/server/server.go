@@ -11,9 +11,12 @@ import (
 	"pinn/internal/domain"
 	"time"
 
+	_ "pinn/docs"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type TaskService interface {
@@ -105,6 +108,10 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 func (s *Server) setRoutes() {
 	s.router.Use(middleware.Logger)
 
+	s.router.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8080/swagger/doc.json"), //The url pointing to API definition
+	))
+
 	s.router.Get("/health", s.HandleHealth)
 	s.router.Get("/stats", s.HandleStats)
 
@@ -120,5 +127,6 @@ func (s *Server) setRoutes() {
 		r.Put("/", s.HandleModelUpdate)
 		r.Delete("/{id}", s.HandleModelDelete)
 		r.Post("/build", s.HandleModelBuild)
+		r.Put("/build", s.HandleModelBuildUpdate)
 	})
 }

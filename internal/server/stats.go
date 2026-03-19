@@ -8,6 +8,13 @@ import (
 	"pinn/internal/sysstats"
 )
 
+// HandleStats godoc
+// @Summary      Get host resources statistics
+// @Description  Returns CPU utilization and available memory of the host
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  domain.StatsResponse
+// @Router       /stats [get]
 func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 	resources, err := sysstats.GetHostResources()
 	if err != nil {

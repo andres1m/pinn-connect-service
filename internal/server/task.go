@@ -15,6 +15,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// HandleTaskRun godoc
+// @Summary      Create and run a new task
+// @Description  Accepts multipart/form-data with task metadata and optional input file
+// @Tags         tasks
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        task  formData  string  true  "Task metadata (JSON)"
+// @Param        file  formData  file    false "Input file for the task"
+// @Success      202  {object}  map[string]string "Task accepted"
+// @Failure      400  {string}  string "Invalid request or missing fields"
+// @Router       /task/run [post]
 func (s *Server) HandleTaskRun(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
@@ -120,6 +131,15 @@ func mapReqToTask(req *domain.CreateTaskRequest, task *domain.Task) {
 	task.TimeoutSec = req.TimeoutSec
 }
 
+// HandleTaskStatus godoc
+// @Summary      Get task status
+// @Description  Returns the current status and metadata of a task
+// @Tags         tasks
+// @Produce      json
+// @Param        id   path      string  true  "Task UUID"
+// @Success      200  {object}  domain.TaskStatusResponse
+// @Failure      404  {string}  string "Task not found"
+// @Router       /task/{id}/status [get]
 func (s *Server) HandleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -182,6 +202,15 @@ func mapTaskToResp(task *domain.Task) *domain.TaskStatusResponse {
 	return &resp
 }
 
+// HandleTaskStop godoc
+// @Summary      Stop a running task
+// @Description  Sends a stop signal to a running container task
+// @Tags         tasks
+// @Param        id       path      string  true  "Task UUID"
+// @Param        timeout  query     string  false "Stop timeout (seconds or duration string)"
+// @Success      200  {string}  string "Task stopped"
+// @Failure      400  {string}  string "Invalid ID or timeout format"
+// @Router       /task/{id}/stop [post]
 func (s *Server) HandleTaskStop(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {

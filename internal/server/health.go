@@ -8,6 +8,14 @@ import (
 	"pinn/internal/domain"
 )
 
+// HandleHealth godoc
+// @Summary      Check service health
+// @Description  Returns the health status of the application and its dependencies
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  domain.HealthResponse
+// @Failure      503  {object}  domain.HealthResponse
+// @Router       /health [get]
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

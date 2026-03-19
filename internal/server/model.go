@@ -13,6 +13,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// HandleModelAdd godoc
+// @Summary      Register a new model
+// @Description  Creates a new model entry with an existing container image
+// @Tags         models
+// @Accept       json
+// @Produce      json
+// @Param        request body domain.CreateModelRequest true "Create Model Request"
+// @Success      201  {object}  domain.Model
+// @Failure      400  {string}  string "Invalid JSON or missing fields"
+// @Router       /model [post]
 func (s *Server) HandleModelAdd(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateModelRequest
 
@@ -40,6 +50,14 @@ func (s *Server) HandleModelAdd(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleModelDelete godoc
+// @Summary      Delete a model
+// @Description  Removes a model from the system and its associated container image
+// @Tags         models
+// @Param        id   path      string  true  "Model ID"
+// @Success      200  {string}  string "Model deleted"
+// @Failure      400  {string}  string "Missing or invalid ID"
+// @Router       /model/{id} [delete]
 func (s *Server) HandleModelDelete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -63,8 +81,19 @@ func (s *Server) HandleModelDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleModelUpdate godoc
+// @Summary      Update model image
+// @Description  Updates the container image for an existing model
+// @Tags         models
+// @Accept       json
+// @Produce      json
+// @Param        request body domain.UpdateModelRequest true "Update Model Request"
+// @Success      200  {string}  string "Model updated"
+// @Failure      400  {string}  string "Invalid JSON"
+// @Router       /model [put]
 func (s *Server) HandleModelUpdate(w http.ResponseWriter, r *http.Request) {
 	var req domain.UpdateModelRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
@@ -86,6 +115,13 @@ func (s *Server) HandleModelUpdate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleModelList godoc
+// @Summary      List all models
+// @Description  Returns a list of all registered models
+// @Tags         models
+// @Produce      json
+// @Success      200  {array}   domain.Model
+// @Router       /model [get]
 func (s *Server) HandleModelList(w http.ResponseWriter, r *http.Request) {
 	models, err := s.modelService.ListModels(r.Context())
 	if err != nil {
@@ -106,10 +142,30 @@ func (s *Server) HandleModelList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleModelBuildUpdate godoc
+// @Summary      Update and rebuild model from archive
+// @Description  Accepts multipart/form-data to rebuild an existing model image
+// @Tags         models
+// @Accept       multipart/form-data
+// @Produce      text/plain
+// @Param        model      formData  string  true  "Model metadata (JSON)"
+// @Param        artifacts  formData  file    true  "Tar.gz archive with artifacts"
+// @Success      200  {string}  string  "BUILD SUCCESSFUL"
+// @Router       /model/build [put]
 func (s *Server) HandleModelBuildUpdate(w http.ResponseWriter, r *http.Request) {
 	s.processModelBuild(w, r, true)
 }
 
+// HandleModelBuild godoc
+// @Summary      Build new model from archive
+// @Description  Accepts multipart/form-data to build a new model image
+// @Tags         models
+// @Accept       multipart/form-data
+// @Produce      text/plain
+// @Param        model      formData  string  true  "Model metadata (JSON)"
+// @Param        artifacts  formData  file    true  "Tar.gz archive with artifacts"
+// @Success      200  {string}  string  "BUILD SUCCESSFUL"
+// @Router       /model/build [post]
 func (s *Server) HandleModelBuild(w http.ResponseWriter, r *http.Request) {
 	s.processModelBuild(w, r, false)
 }

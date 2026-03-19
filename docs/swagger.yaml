@@ -1,0 +1,313 @@
+basePath: /
+definitions:
+  domain.CreateModelRequest:
+    properties:
+      container_image:
+        type: string
+      id:
+        type: string
+    type: object
+  domain.HealthResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  domain.Model:
+    properties:
+      containerImage:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  domain.StatsResponse:
+    properties:
+      available_memory_bytes:
+        type: integer
+      cpu_utilization:
+        type: number
+    type: object
+  domain.TaskStatusResponse:
+    properties:
+      created_at:
+        type: string
+      err_log:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      result_path:
+        type: string
+      scheduled_at:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
+  domain.UpdateModelRequest:
+    properties:
+      container_image:
+        type: string
+      id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Pinn Server API for distributed task execution and model building.
+  title: Pinn API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns the health status of the application and its dependencies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/domain.HealthResponse'
+      summary: Check service health
+      tags:
+      - system
+  /model:
+    get:
+      description: Returns a list of all registered models
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Model'
+            type: array
+      summary: List all models
+      tags:
+      - models
+    post:
+      consumes:
+      - application/json
+      description: Creates a new model entry with an existing container image
+      parameters:
+      - description: Create Model Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.CreateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Model'
+        "400":
+          description: Invalid JSON or missing fields
+          schema:
+            type: string
+      summary: Register a new model
+      tags:
+      - models
+    put:
+      consumes:
+      - application/json
+      description: Updates the container image for an existing model
+      parameters:
+      - description: Update Model Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.UpdateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Model updated
+          schema:
+            type: string
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+      summary: Update model image
+      tags:
+      - models
+  /model/{id}:
+    delete:
+      description: Removes a model from the system and its associated container image
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Model deleted
+          schema:
+            type: string
+        "400":
+          description: Missing or invalid ID
+          schema:
+            type: string
+      summary: Delete a model
+      tags:
+      - models
+  /model/build:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Accepts multipart/form-data to build a new model image
+      parameters:
+      - description: Model metadata (JSON)
+        in: formData
+        name: model
+        required: true
+        type: string
+      - description: Tar.gz archive with artifacts
+        in: formData
+        name: artifacts
+        required: true
+        type: file
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: BUILD SUCCESSFUL
+          schema:
+            type: string
+      summary: Build new model from archive
+      tags:
+      - models
+    put:
+      consumes:
+      - multipart/form-data
+      description: Accepts multipart/form-data to rebuild an existing model image
+      parameters:
+      - description: Model metadata (JSON)
+        in: formData
+        name: model
+        required: true
+        type: string
+      - description: Tar.gz archive with artifacts
+        in: formData
+        name: artifacts
+        required: true
+        type: file
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: BUILD SUCCESSFUL
+          schema:
+            type: string
+      summary: Update and rebuild model from archive
+      tags:
+      - models
+  /stats:
+    get:
+      description: Returns CPU utilization and available memory of the host
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.StatsResponse'
+      summary: Get host resources statistics
+      tags:
+      - system
+  /task/{id}/status:
+    get:
+      description: Returns the current status and metadata of a task
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.TaskStatusResponse'
+        "404":
+          description: Task not found
+          schema:
+            type: string
+      summary: Get task status
+      tags:
+      - tasks
+  /task/{id}/stop:
+    post:
+      description: Sends a stop signal to a running container task
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Stop timeout (seconds or duration string)
+        in: query
+        name: timeout
+        type: string
+      responses:
+        "200":
+          description: Task stopped
+          schema:
+            type: string
+        "400":
+          description: Invalid ID or timeout format
+          schema:
+            type: string
+      summary: Stop a running task
+      tags:
+      - tasks
+  /task/run:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Accepts multipart/form-data with task metadata and optional input
+        file
+      parameters:
+      - description: Task metadata (JSON)
+        in: formData
+        name: task
+        required: true
+        type: string
+      - description: Input file for the task
+        in: formData
+        name: file
+        type: file
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Task accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request or missing fields
+          schema:
+            type: string
+      summary: Create and run a new task
+      tags:
+      - tasks
+swagger: "2.0"

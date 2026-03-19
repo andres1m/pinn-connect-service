@@ -19,4 +19,5 @@ Makefile
 docker-compose.yml
 
 sqlc/
+docs/
 artifacts.tar.gz
