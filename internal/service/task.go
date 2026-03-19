@@ -43,7 +43,8 @@ type TaskRepository interface {
 	Mark(context.Context, *domain.Task, domain.TaskStatus) error
 	GetNextQueuedTask(context.Context) (*domain.Task, error)
 	GetScheduledTasks(context.Context, time.Time) ([]domain.Task, error)
-	GetAllTasks(context.Context) ([]domain.Task, error)
+	GetTasksPaginated(context.Context, int32, int32) ([]domain.Task, error)
+	GetTasksCount(context.Context) (int64, error)
 	DeleteTask(context.Context, uuid.UUID) error
 }
 
@@ -237,13 +238,27 @@ func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, 
 	return result, nil
 }
 
-func (s *TaskService) GetAllTasks(ctx context.Context) ([]domain.Task, error) {
-	result, err := s.repository.GetAllTasks(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting all tasks from repo: %w", err)
+func (s *TaskService) ListTasks(ctx context.Context, page, pageSize int) ([]domain.Task, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
 	}
 
-	return result, nil
+	offset := (page - 1) * pageSize
+
+	tasks, err := s.repository.GetTasksPaginated(ctx, int32(pageSize), int32(offset))
+	if err != nil {
+		return nil, 0, fmt.Errorf("getting paginated tasks from repo: %w", err)
+	}
+
+	total, err := s.repository.GetTasksCount(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("getting total tasks count: %w", err)
+	}
+
+	return tasks, total, nil
 }
 
 func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {

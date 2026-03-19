@@ -342,15 +342,31 @@ func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleGetAllTasks(w http.ResponseWriter, r *http.Request) {
-	tasks, err := s.taskService.GetAllTasks(r.Context())
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+
+	page, _ := strconv.Atoi(pageStr)
+	if page <= 0 {
+		page = 1
+	}
+
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	tasks, total, err := s.taskService.ListTasks(r.Context(), page, pageSize)
 	if err != nil {
-		slog.Error("getting all tasks from task service", "error", err)
+		slog.Error("listing tasks", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	resp := domain.GetAllTasksResponse{
-		Tasks: make([]domain.TaskStatusResponse, 0, len(tasks)),
+		Tasks:      make([]domain.TaskStatusResponse, 0, len(tasks)),
+		TotalCount: total,
+		Page:       page,
+		PageSize:   pageSize,
 	}
 
 	for _, task := range tasks {

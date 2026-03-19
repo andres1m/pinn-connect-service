@@ -45,6 +45,18 @@ services:
       timeout: 5s
       retries: 5
 
+  pinn-admin:
+    build:
+      context: ../../front/ # Путь к папке с фронтендом
+      args:
+        # Важно: указываем внутренний адрес бэкенда в сети Docker
+        - NEXT_PUBLIC_API_URL=http://app:8080
+        - NEXT_PUBLIC_API_TOKEN=pinn_secret
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+
 volumes:
   pgdata:
   minio_data:

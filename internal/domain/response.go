@@ -28,5 +28,8 @@ type StatsResponse struct {
 }
 
 type GetAllTasksResponse struct {
-	Tasks []TaskStatusResponse `json:"tasks"`
+	Tasks      []TaskStatusResponse `json:"tasks"`
+	TotalCount int64                `json:"total_count"`
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"page_size"`
 }

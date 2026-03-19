@@ -25,7 +25,7 @@ type TaskService interface {
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
 	CreateTask(ctx context.Context, task *domain.Task, fileHash []byte) error
 	StopTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) error
-	GetAllTasks(context.Context) ([]domain.Task, error)
+	ListTasks(ctx context.Context, page, pageSize int) ([]domain.Task, int64, error)
 	DeleteTask(context.Context, uuid.UUID) error
 }
 

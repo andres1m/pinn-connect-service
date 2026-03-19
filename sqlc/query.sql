@@ -12,8 +12,13 @@ RETURNING *;
 SELECT * FROM tasks
 WHERE id = $1 LIMIT 1;
 
--- name: GetAllTasks :many
-SELECT * FROM tasks;
+-- name: GetTasksPaginated :many
+SELECT * FROM tasks
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: GetTasksCount :one
+SELECT COUNT(*) FROM tasks;
 
 -- name: FindCachedTask :one
 SELECT result_path FROM tasks

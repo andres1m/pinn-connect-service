@@ -282,10 +282,13 @@ func (r *TaskRepository) GetActiveTasks(ctx context.Context) ([]*domain.Task, er
 	return result, nil
 }
 
-func (r *TaskRepository) GetAllTasks(ctx context.Context) (result []domain.Task, err error) {
-	dbtasks, err := r.queries.GetAllTasks(ctx)
+func (r *TaskRepository) GetTasksPaginated(ctx context.Context, limit, offset int32) (result []domain.Task, err error) {
+	dbtasks, err := r.queries.GetTasksPaginated(ctx, db.GetTasksPaginatedParams{
+		Limit:  limit,
+		Offset: offset,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("getting all tasks: %w", err)
+		return nil, fmt.Errorf("getting paginated tasks: %w", err)
 	}
 
 	for _, dbtask := range dbtasks {
@@ -293,6 +296,15 @@ func (r *TaskRepository) GetAllTasks(ctx context.Context) (result []domain.Task,
 	}
 
 	return
+}
+
+func (r *TaskRepository) GetTasksCount(ctx context.Context) (int64, error) {
+	count, err := r.queries.GetTasksCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("getting tasks count: %w", err)
+	}
+
+	return count, nil
 }
 
 func (r *TaskRepository) DeleteTask(ctx context.Context, id uuid.UUID) error {
