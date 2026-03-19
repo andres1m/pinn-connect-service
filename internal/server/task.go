@@ -176,6 +176,7 @@ func (s *Server) HandleTaskStatus(w http.ResponseWriter, r *http.Request) {
 func mapTaskToResp(task *domain.Task) *domain.TaskStatusResponse {
 	resp := domain.TaskStatusResponse{
 		ID:        task.ID.String(),
+		ModelID:   task.ModelID,
 		Status:    string(task.Status),
 		CreatedAt: task.CreatedAt,
 	}
@@ -249,4 +250,77 @@ func (s *Server) HandleTaskStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// HandleGetAllTasks godoc
+// @Summary      Get all tasks
+// @Description  Returns a list of all tasks with their statuses and metadata
+// @Tags         tasks
+// @Produce      json
+// @Success      200  {object}  domain.GetAllTasksResponse
+// @Failure      500  {string}  string "Internal server error"
+// @Router       /task/list [get]
+// HandleTaskResult godoc
+// @Summary      Get task result download URL
+// @Description  Returns a pre-signed URL to download the task result artifact
+// @Tags         tasks
+// @Produce      json
+// @Param        id   path      string  true  "Task UUID"
+// @Success      200  {object}  map[string]string "Download URL"
+// @Failure      400  {string}  string "Invalid ID"
+// @Failure      404  {string}  string "Task not found or result not ready"
+// @Router       /task/{id}/result [get]
+func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	uuID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	url, err := s.taskService.GetResultURL(r.Context(), uuID)
+	if err != nil {
+		slog.Error("getting task result url", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if url == "" {
+		http.Error(w, "result not found or task not completed", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"download_url": url}); err != nil {
+		slog.Error("encoding result url response", "error", err)
+	}
+}
+
+func (s *Server) HandleGetAllTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.taskService.GetAllTasks(r.Context())
+	if err != nil {
+		slog.Error("getting all tasks from task service", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := domain.GetAllTasksResponse{
+		Tasks: make([]domain.TaskStatusResponse, 0, len(tasks)),
+	}
+
+	for _, task := range tasks {
+		resp.Tasks = append(resp.Tasks, *mapTaskToResp(&task))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encoding all tasks", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 }

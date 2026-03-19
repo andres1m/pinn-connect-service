@@ -11,8 +11,8 @@ services:
       - HOST_PROC=/host_proc
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock 
-      - ./tmp:/app/tmp
-      - ./mock:/app/mock
+      - ./tmp:/home/andres1m/go-projects/kursach/tmp
+      - ./mock:/home/andres1m/go-projects/kursach/mock
       - /proc:/host_proc:ro
     depends_on:
       db:

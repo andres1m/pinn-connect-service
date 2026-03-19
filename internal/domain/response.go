@@ -12,6 +12,7 @@ type RunMockResponse struct {
 
 type TaskStatusResponse struct {
 	ID          string     `json:"id"`
+	ModelID     string     `json:"model_id"`
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"created_at"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
@@ -24,4 +25,8 @@ type TaskStatusResponse struct {
 type StatsResponse struct {
 	AvailableMemoryBytes uint64  `json:"available_memory_bytes"`
 	CPUUtilization       float64 `json:"cpu_utilization"`
+}
+
+type GetAllTasksResponse struct {
+	Tasks []TaskStatusResponse `json:"tasks"`
 }

@@ -17,14 +17,24 @@ import (
 )
 
 type MinIOStorage struct {
-	Client *minio.Client
-	bucket string
+	Client         *minio.Client
+	clientExternal *minio.Client
+	bucket         string
 }
 
 func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage, error) {
 	client, err := minio.New(config.MinIO.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(config.MinIO.AccessKey, config.MinIO.SecretKey, ""),
 		Secure: config.MinIO.SSLUse,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating minio client: %w", err)
+	}
+
+	clientExternal, err := minio.New("localhost:9000", &minio.Options{
+		Creds:  credentials.NewStaticV4(config.MinIO.AccessKey, config.MinIO.SecretKey, ""),
+		Secure: config.MinIO.SSLUse,
+		Region: "us-east-1",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating minio client: %w", err)
@@ -43,8 +53,9 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 	}
 
 	return &MinIOStorage{
-		Client: client,
-		bucket: config.MinIO.Bucket,
+		Client:         client,
+		bucket:         config.MinIO.Bucket,
+		clientExternal: clientExternal,
 	}, nil
 }
 
@@ -109,7 +120,7 @@ func (m *MinIOStorage) GetDownloadURL(ctx context.Context, objectKey string) (st
 
 	reqParams := make(url.Values)
 
-	presignedUrl, err := m.Client.PresignedGetObject(ctx, m.bucket, objectKey, expiry, reqParams)
+	presignedUrl, err := m.clientExternal.PresignedGetObject(ctx, m.bucket, objectKey, expiry, reqParams)
 	if err != nil {
 		return "", fmt.Errorf("generating minio download url: %w", err)
 	}

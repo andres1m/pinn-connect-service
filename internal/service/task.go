@@ -42,6 +42,7 @@ type TaskRepository interface {
 	Mark(context.Context, *domain.Task, domain.TaskStatus) error
 	GetNextQueuedTask(context.Context) (*domain.Task, error)
 	GetScheduledTasks(context.Context, time.Time) ([]domain.Task, error)
+	GetAllTasks(context.Context) ([]domain.Task, error)
 }
 
 type Workspace interface {
@@ -229,6 +230,15 @@ func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, 
 	result, err := s.repository.GetTaskById(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("getting task from repo: %w", err)
+	}
+
+	return result, nil
+}
+
+func (s *TaskService) GetAllTasks(ctx context.Context) ([]domain.Task, error) {
+	result, err := s.repository.GetAllTasks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting all tasks from repo: %w", err)
 	}
 
 	return result, nil

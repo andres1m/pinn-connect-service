@@ -282,6 +282,19 @@ func (r *TaskRepository) GetActiveTasks(ctx context.Context) ([]*domain.Task, er
 	return result, nil
 }
 
+func (r *TaskRepository) GetAllTasks(ctx context.Context) (result []domain.Task, err error) {
+	dbtasks, err := r.queries.GetAllTasks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting all tasks: %w", err)
+	}
+
+	for _, dbtask := range dbtasks {
+		result = append(result, *dbTaskToDomainTask(&dbtask))
+	}
+
+	return
+}
+
 func dbTaskToDomainTask(task *db.Task) *domain.Task {
 	d := &domain.Task{
 		ID:             uuid.UUID(task.ID.Bytes),

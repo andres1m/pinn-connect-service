@@ -12,6 +12,9 @@ RETURNING *;
 SELECT * FROM tasks
 WHERE id = $1 LIMIT 1;
 
+-- name: GetAllTasks :many
+SELECT * FROM tasks;
+
 -- name: FindCachedTask :one
 SELECT result_path FROM tasks
 WHERE signature = $1

@@ -191,6 +191,51 @@ func (q *Queries) GetActiveTasks(ctx context.Context) ([]Task, error) {
 	return items, nil
 }
 
+const getAllTasks = `-- name: GetAllTasks :many
+SELECT id, model_id, input_filename, result_path, signature, status, container_id, container_image, container_envs, container_cmd, error_log, scheduled_at, started_at, finished_at, created_at, updated_at, mem_lim, cpu_lim, gpu_enable, timeout_sec FROM tasks
+`
+
+func (q *Queries) GetAllTasks(ctx context.Context) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getAllTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.ModelID,
+			&i.InputFilename,
+			&i.ResultPath,
+			&i.Signature,
+			&i.Status,
+			&i.ContainerID,
+			&i.ContainerImage,
+			&i.ContainerEnvs,
+			&i.ContainerCmd,
+			&i.ErrorLog,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemLim,
+			&i.CpuLim,
+			&i.GpuEnable,
+			&i.TimeoutSec,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getModelByID = `-- name: GetModelByID :one
 SELECT id, container_image, created_at, updated_at FROM models WHERE id = $1 LIMIT 1
 `

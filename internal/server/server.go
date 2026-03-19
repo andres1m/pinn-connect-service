@@ -25,6 +25,7 @@ type TaskService interface {
 	GetResultURL(ctx context.Context, id uuid.UUID) (string, error)
 	CreateTask(ctx context.Context, task *domain.Task, fileHash []byte) error
 	StopTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) error
+	GetAllTasks(context.Context) ([]domain.Task, error)
 }
 
 type ModelService interface {
@@ -121,9 +122,11 @@ func (s *Server) setRoutes() {
 		r.Get("/stats", s.HandleStats)
 
 		r.Route("/task", func(r chi.Router) {
+			r.Get("/list", s.HandleGetAllTasks)
 			r.Post("/run", s.HandleTaskRun)
 			r.Get("/{id}/status", s.HandleTaskStatus)
 			r.Post("/{id}/stop", s.HandleTaskStop)
+			r.Get("/{id}/result", s.HandleTaskResult)
 		})
 
 		r.Route("/model", func(r chi.Router) {
