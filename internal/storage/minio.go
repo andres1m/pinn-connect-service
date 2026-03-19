@@ -17,7 +17,7 @@ import (
 )
 
 type MinIOStorage struct {
-	client *minio.Client
+	Client *minio.Client
 	bucket string
 }
 
@@ -43,7 +43,7 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 	}
 
 	return &MinIOStorage{
-		client: client,
+		Client: client,
 		bucket: config.MinIO.Bucket,
 	}, nil
 }
@@ -94,7 +94,7 @@ func (m *MinIOStorage) upload(ctx context.Context, objectKey string, r io.Reader
 		contentType = "application/octet-stream"
 	}
 
-	_, err := m.client.PutObject(ctx, m.bucket, objectKey, r, size, minio.PutObjectOptions{
+	_, err := m.Client.PutObject(ctx, m.bucket, objectKey, r, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {
@@ -109,10 +109,15 @@ func (m *MinIOStorage) GetDownloadURL(ctx context.Context, objectKey string) (st
 
 	reqParams := make(url.Values)
 
-	presignedUrl, err := m.client.PresignedGetObject(ctx, m.bucket, objectKey, expiry, reqParams)
+	presignedUrl, err := m.Client.PresignedGetObject(ctx, m.bucket, objectKey, expiry, reqParams)
 	if err != nil {
 		return "", fmt.Errorf("generating minio download url: %w", err)
 	}
 
 	return presignedUrl.String(), nil
+}
+
+func (p *MinIOStorage) CheckStatus(ctx context.Context) error {
+	_, err := p.Client.BucketExists(ctx, "anytestbucket")
+	return err
 }

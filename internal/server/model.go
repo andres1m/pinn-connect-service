@@ -76,7 +76,7 @@ func (s *Server) HandleModelUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.modelService.UpdateModel(r.Context(), req.ID, req.NewContainerImage); err != nil {
+	if err := s.modelService.UpdateModel(r.Context(), req.ID, req.ContainerImage); err != nil {
 		slog.Error("error updating model", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -106,7 +106,15 @@ func (s *Server) HandleModelList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) HandleModelBuildUpdate(w http.ResponseWriter, r *http.Request) {
+	s.processModelBuild(w, r, true)
+}
+
 func (s *Server) HandleModelBuild(w http.ResponseWriter, r *http.Request) {
+	s.processModelBuild(w, r, false)
+}
+
+func (s *Server) processModelBuild(w http.ResponseWriter, r *http.Request, isUpdate bool) {
 	mr, err := r.MultipartReader()
 	if err != nil {
 		http.Error(w, "invalid multipart request", http.StatusBadRequest)
@@ -146,7 +154,11 @@ func (s *Server) HandleModelBuild(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if exists {
+			if isUpdate && !exists {
+				http.Error(w, "model does not exist", http.StatusNotFound)
+				return
+			}
+			if !isUpdate && exists {
 				http.Error(w, "model already exists", http.StatusConflict)
 				return
 			}
@@ -179,7 +191,13 @@ func (s *Server) HandleModelBuild(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.WriteHeader(http.StatusOK)
 
-			if err := s.modelService.BuildModel(r.Context(), modelID, archiveReader, w); err != nil {
+			if isUpdate {
+				err = s.modelService.RebuildModel(r.Context(), modelID, archiveReader, w)
+			} else {
+				err = s.modelService.BuildModel(r.Context(), modelID, archiveReader, w)
+			}
+
+			if err != nil {
 				fmt.Fprintf(w, "\nBUILD FAILED: %v\n", err)
 				return
 			}

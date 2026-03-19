@@ -32,6 +32,7 @@ type ModelService interface {
 	UpdateModel(ctx context.Context, modelID string, newContainerImage string) error
 	Exists(context.Context, string) (bool, error)
 	BuildModel(ctx context.Context, modelID string, archive io.Reader, logWriter io.Writer) error
+	RebuildModel(ctx context.Context, modelID string, archive io.Reader, logWriter io.Writer) error
 	DeleteImageByModelId(context.Context, string) error
 }
 

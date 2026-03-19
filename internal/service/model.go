@@ -49,6 +49,33 @@ func (s *ModelService) BuildModel(ctx context.Context, modelID string, archive i
 	return nil
 }
 
+func (s *ModelService) RebuildModel(ctx context.Context, modelID string, archive io.Reader, logWriter io.Writer) error {
+	model, err := s.repository.GetModelByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("getting model info: %w", err)
+	}
+	if model == nil {
+		return fmt.Errorf("model %s not found", modelID)
+	}
+
+	if model.ContainerImage != "" {
+		if err := s.manager.RemoveImage(ctx, model.ContainerImage); err != nil {
+			fmt.Fprintf(logWriter, "Warning: failed to remove old image %s: %v\n", model.ContainerImage, err)
+		}
+	}
+
+	tag := fmt.Sprintf("pinn-model-%s:latest", modelID)
+	if err := s.manager.BuildImage(ctx, archive, tag, logWriter); err != nil {
+		return fmt.Errorf("rebuilding docker image: %w", err)
+	}
+
+	if err := s.repository.UpdateModel(ctx, modelID, tag); err != nil {
+		return fmt.Errorf("updating model in repository: %w", err)
+	}
+
+	return nil
+}
+
 func (s *ModelService) GetImageByID(ctx context.Context, modelID string) (string, error) {
 	model, err := s.repository.GetModelByID(ctx, modelID)
 	if err != nil {

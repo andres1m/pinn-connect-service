@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"pinn/internal/config"
+	"pinn/internal/db"
 	"pinn/internal/docker"
 	"pinn/internal/gc"
 	"pinn/internal/repository"
@@ -77,7 +78,7 @@ func run() error {
 
 	modelService := service.NewModelService(modelRepo, manager)
 	taskService := service.NewTaskService(manager, storage, cfg, taskRepo, workspace, modelService)
-	healthService := service.NewHealthService(manager)
+	healthService := service.NewHealthService(manager, storage, &db.PostgresDatabasePinger{Pool: pool})
 
 	gcCtx, gcCancel := context.WithTimeout(ctx, 20*time.Second)
 	gc := gc.NewGarbageCollector(taskRepo, workspace, manager, storage, taskService)

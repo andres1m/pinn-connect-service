@@ -19,6 +19,6 @@ type CreateModelRequest struct {
 }
 
 type UpdateModelRequest struct {
-	ID                string `json:"id"`
-	NewContainerImage string `json:"new_container_image"`
+	ID             string `json:"id"`
+	ContainerImage string `json:"container_image"`
 }
