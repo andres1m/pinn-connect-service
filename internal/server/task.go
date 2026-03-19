@@ -173,6 +173,15 @@ func (s *Server) HandleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleTaskDelete godoc
+// @Summary      Delete a task
+// @Description  Removes task from database, deletes its artifacts from storage and cleans up its workspace
+// @Tags         tasks
+// @Param        id   path      string  true  "Task UUID"
+// @Success      204  "No Content"
+// @Failure      400  {string}  string "Invalid ID"
+// @Failure      500  {string}  string "Internal server error"
+// @Router       /task/{id} [delete]
 func (s *Server) HandleTaskDelete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -292,14 +301,6 @@ func (s *Server) HandleTaskStop(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// HandleGetAllTasks godoc
-// @Summary      Get all tasks
-// @Description  Returns a list of all tasks with their statuses and metadata
-// @Tags         tasks
-// @Produce      json
-// @Success      200  {object}  domain.GetAllTasksResponse
-// @Failure      500  {string}  string "Internal server error"
-// @Router       /task/list [get]
 // HandleTaskResult godoc
 // @Summary      Get task result download URL
 // @Description  Returns a pre-signed URL to download the task result artifact
@@ -341,6 +342,16 @@ func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleGetAllTasks godoc
+// @Summary      Get all tasks (paginated)
+// @Description  Returns a paginated list of all tasks with their statuses and metadata
+// @Tags         tasks
+// @Produce      json
+// @Param        page       query     int  false  "Page number (default: 1)"
+// @Param        page_size  query     int  false  "Number of items per page (default: 10)"
+// @Success      200  {object}  domain.GetAllTasksResponse
+// @Failure      500  {string}  string "Internal server error"
+// @Router       /task/list [get]
 func (s *Server) HandleGetAllTasks(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
