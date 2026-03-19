@@ -113,20 +113,43 @@ func (s *Server) setRoutes() {
 	))
 
 	s.router.Get("/health", s.HandleHealth)
-	s.router.Get("/stats", s.HandleStats)
 
-	s.router.Route("/task", func(r chi.Router) {
-		r.Post("/run", s.HandleTaskRun)
-		r.Get("/{id}/status", s.HandleTaskStatus)
-		r.Post("/{id}/stop", s.HandleTaskStop)
+	// Protected routes group
+	s.router.Group(func(r chi.Router) {
+		r.Use(s.AuthMiddleware)
+
+		r.Get("/stats", s.HandleStats)
+
+		r.Route("/task", func(r chi.Router) {
+			r.Post("/run", s.HandleTaskRun)
+			r.Get("/{id}/status", s.HandleTaskStatus)
+			r.Post("/{id}/stop", s.HandleTaskStop)
+		})
+
+		r.Route("/model", func(r chi.Router) {
+			r.Get("/", s.HandleModelList)
+			r.Post("/", s.HandleModelAdd)
+			r.Put("/", s.HandleModelUpdate)
+			r.Delete("/{id}", s.HandleModelDelete)
+			r.Post("/build", s.HandleModelBuild)
+			r.Put("/build", s.HandleModelBuildUpdate)
+		})
 	})
+}
 
-	s.router.Route("/model", func(r chi.Router) {
-		r.Get("/", s.HandleModelList)
-		r.Post("/", s.HandleModelAdd)
-		r.Put("/", s.HandleModelUpdate)
-		r.Delete("/{id}", s.HandleModelDelete)
-		r.Post("/build", s.HandleModelBuild)
-		r.Put("/build", s.HandleModelBuildUpdate)
+func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := s.config.Server.APIToken
+		if token == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if r.Header.Get("X-API-Token") != token {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }

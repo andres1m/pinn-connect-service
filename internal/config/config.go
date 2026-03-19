@@ -24,6 +24,7 @@ type MinIOConfig struct {
 type ServerConfig struct {
 	Port                   string        `env:"PORT" envDefault:":8080"`
 	DefaultTaskStopTimeout time.Duration `env:"DEFAULT_TASK_STOP_TIMEOUT" envDefault:"5s"`
+	APIToken               string        `env:"API_TOKEN"` // e.g. SERVER_API_TOKEN=secret
 }
 
 type SchedulerConfig struct {
