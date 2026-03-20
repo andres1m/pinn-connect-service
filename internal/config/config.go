@@ -96,5 +96,9 @@ func Load() (*Config, error) {
 	}
 	cfg.WorkspaceDirsPerm = os.FileMode(perm)
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
 }
