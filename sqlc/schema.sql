@@ -4,7 +4,8 @@ CREATE TYPE task_status AS ENUM (
     'queued',
     'running',
     'completed',
-    'failed'
+    'failed',
+    'stopped'
 );
 
 CREATE TABLE tasks (
