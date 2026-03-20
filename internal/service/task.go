@@ -350,6 +350,7 @@ func (s *TaskService) processQueue(ctx context.Context, sem chan struct{}, wg *s
 		recTask := s.getNextRecoverTask()
 		if recTask != nil {
 			wg.Go(func() { s.waitAndSaveTask(ctx, recTask) })
+			<-sem
 			return
 		}
 
