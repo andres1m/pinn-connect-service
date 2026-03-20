@@ -14,11 +14,12 @@ type DatabaseConfig struct {
 }
 
 type MinIOConfig struct {
-	Endpoint  string `env:"ENDPOINT,required"`
-	AccessKey string `env:"ACCESS_KEY,required"`
-	SecretKey string `env:"SECRET_KEY,required"`
-	SSLUse    bool   `env:"USE_SSL" envDefault:"false"`
-	Bucket    string `env:"BUCKET" envDefault:"tasks"`
+	Endpoint         string `env:"ENDPOINT,required"`
+	ExternalEndpoint string `env:"EXTERNAL_ENDPOINT,required" envDefault:"localhost:9000"`
+	AccessKey        string `env:"ACCESS_KEY,required"`
+	SecretKey        string `env:"SECRET_KEY,required"`
+	SSLUse           bool   `env:"USE_SSL" envDefault:"false"`
+	Bucket           string `env:"BUCKET" envDefault:"tasks"`
 }
 
 type ServerConfig struct {

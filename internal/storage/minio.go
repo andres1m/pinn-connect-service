@@ -31,7 +31,7 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 		return nil, fmt.Errorf("creating minio client: %w", err)
 	}
 
-	clientExternal, err := minio.New("localhost:9000", &minio.Options{
+	clientExternal, err := minio.New(config.MinIO.ExternalEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(config.MinIO.AccessKey, config.MinIO.SecretKey, ""),
 		Secure: config.MinIO.SSLUse,
 		Region: "us-east-1",
