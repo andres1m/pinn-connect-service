@@ -149,7 +149,7 @@ func (r *TaskRepository) Mark(ctx context.Context, task *domain.Task, status dom
 		}
 		return nil
 	default:
-		return errors.New("unsopported task status")
+		return errors.New("unsupported task status")
 	}
 }
 
