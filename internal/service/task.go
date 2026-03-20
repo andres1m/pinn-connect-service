@@ -218,7 +218,11 @@ func (s *TaskService) StartScheduler(ctx context.Context, wg *sync.WaitGroup) {
 
 					delay := time.Until(*task.ScheduledAt)
 					time.AfterFunc(delay, func() {
-						s.repository.Mark(ctx, &task, domain.TaskQueued)
+						t, err := s.repository.GetTaskById(ctx, task.ID)
+						if err != nil || t.Status != domain.TaskScheduled {
+							return
+						}
+						_ = s.repository.Mark(ctx, &task, domain.TaskQueued)
 						mu.Lock()
 						delete(scheduled, task.ID)
 						mu.Unlock()

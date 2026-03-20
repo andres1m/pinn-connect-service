@@ -59,14 +59,14 @@ func NewMinIOStorage(ctx context.Context, config *config.Config) (*MinIOStorage,
 	}, nil
 }
 
-func (s *MinIOStorage) DeleteArtifacts(ctx context.Context, taskID uuid.UUID) error {
+func (m *MinIOStorage) DeleteArtifacts(ctx context.Context, taskID uuid.UUID) error {
 	prefix := fmt.Sprintf("tasks/%s/", taskID)
 
-	objectsCh := s.Client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{
+	objectsCh := m.Client.ListObjects(ctx, m.bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: true,
 	})
-	errorCh := s.Client.RemoveObjects(ctx, s.bucket, objectsCh, minio.RemoveObjectsOptions{})
+	errorCh := m.Client.RemoveObjects(ctx, m.bucket, objectsCh, minio.RemoveObjectsOptions{})
 
 	for err := range errorCh {
 		if err.Err != nil {
@@ -77,7 +77,7 @@ func (s *MinIOStorage) DeleteArtifacts(ctx context.Context, taskID uuid.UUID) er
 	return nil
 }
 
-func (s *MinIOStorage) UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error) {
+func (m *MinIOStorage) UploadToStorage(ctx context.Context, taskID uuid.UUID, resultDir string) (string, error) {
 	entries, err := os.ReadDir(resultDir)
 	if err != nil {
 		return "", fmt.Errorf("reading result dir: %w", err)
@@ -109,7 +109,7 @@ func (s *MinIOStorage) UploadToStorage(ctx context.Context, taskID uuid.UUID, re
 	}
 
 	objectKey := fmt.Sprintf("tasks/%s/%s", taskID, resultFileName)
-	_, err = s.upload(ctx, objectKey, file, stat.Size())
+	_, err = m.upload(ctx, objectKey, file, stat.Size())
 	if err != nil {
 		return "", fmt.Errorf("saving to S3 storage: %w", err)
 	}
@@ -146,7 +146,7 @@ func (m *MinIOStorage) GetDownloadURL(ctx context.Context, objectKey string) (st
 	return presignedUrl.String(), nil
 }
 
-func (p *MinIOStorage) CheckStatus(ctx context.Context) error {
-	_, err := p.Client.BucketExists(ctx, "anytestbucket")
+func (m *MinIOStorage) CheckStatus(ctx context.Context) error {
+	_, err := m.Client.BucketExists(ctx, m.bucket)
 	return err
 }
